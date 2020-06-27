@@ -1,0 +1,5 @@
+main
+vdotenv
+*.so
+*.dylib
+*.dll
