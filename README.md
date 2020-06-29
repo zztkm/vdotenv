@@ -38,7 +38,7 @@ import vdotenv
 ## Examples
 
 ```v
-impor os
+import os
 
 import zztkm.vdotenv
 
