@@ -51,6 +51,10 @@ fn main() {
 }
 ```
 
+## Contributing
+
+[Contributing Guide for this repository.](docs/CONTRIBUTING.md)
+
 ## License
 
 [MIT License](LICENSE.txt)
