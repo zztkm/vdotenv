@@ -3,3 +3,4 @@ vdotenv
 *.so
 *.dylib
 *.dll
+.env
