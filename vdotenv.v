@@ -2,7 +2,9 @@ module vdotenv
 
 import os
 
-//.envファイルから環境変数を読み込んで設定する.
+// note: Do not overwrite env variables that already exist.
+// 
+// test
 pub fn load() {
     filename := '.env'
     load_file(filename, false)

@@ -2,6 +2,7 @@
 
 Which loads env vars from a .env file.
 
+[module document.](docs/vdotenv.md)
 
 ## Installation and Import
 
