@@ -26,7 +26,6 @@ fn load_file(filename string, over_load bool) {
     for env in env_map.keys() {
         key := env
         value := env_map[key]
-        // 現状は環境変数を上書きしないようにしている
         os.setenv(key, value, over_load)
     }
 }
