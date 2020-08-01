@@ -1,5 +1,10 @@
 main
+
 vdotenv
+vdotenv.exe
+vdotenv_test
+vdotenv_test.exe
+
 *.so
 *.dylib
 *.dll

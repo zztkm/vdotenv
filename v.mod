@@ -1,9 +1,10 @@
 Module {
-	name: 'vdotenv',
-	author: 'zztkm'
+	name: 'vdotenv'
 	version: '0.1.0'
 	description: 'which loads env vars from a .env file'
 	dependencies: []
-	vcs: 'git'
 	license: 'MIT'
+	repo_url: 'https://github.com/zztkm/vdotenv'
+	author: 'zztkm'
+	vcs: 'git'
 }
