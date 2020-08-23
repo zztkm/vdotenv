@@ -3,8 +3,6 @@ module vdotenv
 import os
 
 // note: Do not overwrite env variables that already exist.
-// 
-// test
 pub fn load() {
     filename := '.env'
     load_file(filename, false)
