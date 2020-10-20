@@ -48,11 +48,11 @@ pub fn print_file() {
 
 
 // env_mapを環境変数に読み込む
-fn load_env_map(env_map map[string]string, overload_env bool) {
+fn load_env_map(env_map map[string]string, over_load bool) {
     for env in env_map.keys() {
         key := env
         value := env_map[key]
-        os.setenv(key, value, overload_env)
+        os.setenv(key, value, over_load)
     }
 }
 
