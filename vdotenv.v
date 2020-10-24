@@ -5,21 +5,25 @@ import time
 
 
 // note: Do not overwrite env variables that already exist.
-pub fn load() {
-    filename := '.env'
-    contents := read_file(filename)
-    if contents == '' { return } 
-    env_map := parse_contents(contents)
-    load_env_map(env_map,false)
+pub fn load(filenames ...string) {
+    if filenames.len > 0 {
+        for filename in filenames {
+            load_env(filename, false)
+        }
+    } else {
+        load_env('.env', false)
+    }
 }
 
 //環境変数を上書きする.
-pub fn over_load() {
-    filename := '.env'
-    contents := read_file(filename)
-    if contents == '' { return }
-    env_map := parse_contents(contents)
-    load_env_map(env_map,true)
+pub fn over_load(filenames ...string) {
+    if filenames.len > 0 {
+        for filename in filenames {
+            load_env(filename, true)
+        }
+    } else {
+        load_env('.env', true)
+    }
 }
 
 // .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
@@ -104,4 +108,12 @@ fn format_env_map(env_map map[string]string) string {
         format_string += '$key=${env_map[key]}\n'
     }
     return format_string
+}
+
+// load env
+fn load_env(filename string, overload_env bool) {
+    contents := read_file(filename)
+    if contents == '' { return } 
+    env_map := parse_contents(contents)
+    load_env_map(env_map, overload_env)
 }
