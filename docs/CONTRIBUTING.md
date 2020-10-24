@@ -45,6 +45,8 @@ Locally merge (or rebase) the upstream development branch into your topic branch
 
 Push your topic branch up to your fork:
 ```bash
+# Always run v fmt -w file.v before pushing your code.
+  $ make doc
   $ git push origin <topic-branch-name>
 ```
 
