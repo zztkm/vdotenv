@@ -95,9 +95,13 @@ fn parse_contents(contents string) map[string]string {
 fn parse_lines(lines []string) map[string]string {
 	mut env_map := map[string]string{}
 	for line in lines {
-		key := line.split('=')[0]
-		value := line.split('=')[1]
-		env_map[key] = value
+		if !line.starts_with('#') {
+			key := line.split('=')[0]
+			temp_value := line.split('=')[1]
+
+			value := temp_value.split(' #')[0]
+			env_map[key] = value
+		}
 	}
 	return env_map
 }
