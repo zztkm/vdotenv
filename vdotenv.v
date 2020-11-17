@@ -3,7 +3,7 @@ module vdotenv
 import os
 import time
 
-// note: Do not overwrite env variables that already exist.
+// load create environment variables from the values in specified files; default to .env [note: Does not overwrite env variables that already exist.]
 pub fn load(filenames ...string) {
 	if filenames.len > 0 {
 		for filename in filenames {
@@ -14,7 +14,7 @@ pub fn load(filenames ...string) {
 	}
 }
 
-// 環境変数を上書きする.
+// over_load create environment variables from specified files [note: Overwrites env variables that already exist.] 環境変数を上書きする. 
 pub fn over_load(filenames ...string) {
 	if filenames.len > 0 {
 		for filename in filenames {
@@ -25,7 +25,7 @@ pub fn over_load(filenames ...string) {
 	}
 }
 
-// .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
+// print_terminal prints the values set in .env file to the terminal .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
 pub fn print_terminal() {
 	filename := '.env'
 	contents := read_file(filename)
@@ -37,7 +37,7 @@ pub fn print_terminal() {
 	println(format_env_map(os_env_map))
 }
 
-// .envファイルに記載されている環境変数に関して，現在の設定状況をファイルに書き出す．
+// print_file writes the values set in .env file to a file .envファイルに記載されている環境変数に関して，現在の設定状況をファイルに書き出す．
 pub fn print_file() {
 	filename := '.env'
 	contents := read_file(filename)
@@ -49,7 +49,7 @@ pub fn print_file() {
 	write_file(filename, format_env_map(os_env_map))
 }
 
-// env_mapを環境変数に読み込む
+// load_env_map sets/overwrites enviroments variables with values from env_map env_mapを環境変数に読み込む
 fn load_env_map(env_map map[string]string, over_load bool) {
 	for env in env_map.keys() {
 		key := env
@@ -58,7 +58,7 @@ fn load_env_map(env_map map[string]string, over_load bool) {
 	}
 }
 
-// fileを読み込む
+// read_file read file contents into a string fileを読み込む
 fn read_file(filename string) string {
 	contents := os.read_file(filename.trim_space()) or {
 		println('Failed to open $filename')
@@ -67,8 +67,8 @@ fn read_file(filename string) string {
 	return contents
 }
 
-// fileに書き出す
-fn write_file(filename, contents string) {
+// write_file write contents to timestamped file fileに書き出す
+fn write_file(filename string, contents string) {
 	write_filename := './$filename.trim_space() $time.now()'
 	os.write_file(write_filename, contents) or {
 		println('Failed to open $write_filename')
@@ -76,7 +76,7 @@ fn write_file(filename, contents string) {
 	}
 }
 
-// 引数で渡されたキーに紐づく環境変数を読み込み keys and values で返却する.
+// read_env_var match the specified keys to their values and return the resulting map 引数で渡されたキーに紐づく環境変数を読み込み keys and values で返却する.
 fn read_env_var(keys []string) map[string]string {
 	mut env_map := map[string]string{}
 	for key in keys {
@@ -85,13 +85,13 @@ fn read_env_var(keys []string) map[string]string {
 	return env_map
 }
 
-// .envファイルから読み込んだcontentsをkeys and values で返却する．
+// parse_contents parses the contents of a file's contents and returns a map of environment variable .envファイルから読み込んだcontentsをkeys and values で返却する．
 fn parse_contents(contents string) map[string]string {
 	lines := contents.split_into_lines()
 	return parse_lines(lines)
 }
 
-// env file から読み込んだ各行を keys and values で返却する.
+// parse_lines return a map of environment variables by parsing the lines of a file env file から読み込んだ各行を keys and values で返却する.
 fn parse_lines(lines []string) map[string]string {
 	mut env_map := map[string]string{}
 	for line in lines {
@@ -102,7 +102,7 @@ fn parse_lines(lines []string) map[string]string {
 	return env_map
 }
 
-// keys and values で渡された値をkey=valueにフォーマットする．
+// format_env_map format key-value pairs on new lines, key=value keys and values で渡された値をkey=valueにフォーマットする．
 fn format_env_map(env_map map[string]string) string {
 	mut format_string := ''
 	for key in env_map.keys() {
@@ -111,7 +111,7 @@ fn format_env_map(env_map map[string]string) string {
 	return format_string
 }
 
-// load env
+// load_env parse the contents of the specified file to set/overload an environment variable
 fn load_env(filename string, overload_env bool) {
 	contents := read_file(filename)
 	if contents == '' {
