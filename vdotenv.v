@@ -100,7 +100,7 @@ fn parse_lines(lines []string) map[string]string {
 			mut quotes_are_open := false
 			mut segments_to_keep := []string{}
 			for segment in segments_between_hashes {
-				if segment.count('"') == 1 || segment.count('\'') == 1 {
+				if segment.count('"') == 1 || segment.count("\'") == 1 {
 					if quotes_are_open {
 						quotes_are_open = false
 						segments_to_keep << segment
@@ -108,17 +108,13 @@ fn parse_lines(lines []string) map[string]string {
 						quotes_are_open = true
 					}
 				}
-
 				if segments_to_keep.len == 0 || quotes_are_open {
 					segments_to_keep << segment
 				}
 			}
-
 			mut new_line := segments_to_keep.join('#')
-
 			key := new_line.split('=')[0].trim_space()
 			value := new_line.split('=')[1].trim_space()
-			
 			env_map[key] = value
 		}
 	}
