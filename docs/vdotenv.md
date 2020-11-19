@@ -2,10 +2,10 @@
 
 ## Contents
 
-- [#load](load)
-- [#over_load](over_load)
-- [#print_terminal](print_terminal)
-- [#print_file](print_file)
+- [#load](#load)
+- [#over_load](#over_load)
+- [#print_terminal](#print_terminal)
+- [#print_file](#print_file)
 
 ## load
 
