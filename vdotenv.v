@@ -68,7 +68,7 @@ fn read_file(filename string) string {
 }
 
 // fileに書き出す
-fn write_file(filename, contents string) {
+fn write_file(filename string, contents string) {
 	write_filename := './$filename.trim_space() $time.now()'
 	os.write_file(write_filename, contents) or {
 		println('Failed to open $write_filename')
@@ -96,10 +96,29 @@ fn parse_lines(lines []string) map[string]string {
 	mut env_map := map[string]string{}
 	for line in lines {
 		if !line.starts_with('#') {
-			key := line.split('=')[0]
-			temp_value := line.split('=')[1]
+			segments_between_hashes := line.split('#')
+			mut quotes_are_open := false
+			mut segments_to_keep := []string{}
+			for segment in segments_between_hashes {
+				if segment.count('"') == 1 || segment.count('\'') == 1 {
+					if quotes_are_open {
+						quotes_are_open = false
+						segments_to_keep << segment
+					} else {
+						quotes_are_open = true
+					}
+				}
 
-			value := temp_value.split(' #')[0]
+				if segments_to_keep.len == 0 || quotes_are_open {
+					segments_to_keep << segment
+				}
+			}
+
+			mut new_line := segments_to_keep.join('#')
+
+			key := new_line.split('=')[0].trim_space()
+			value := new_line.split('=')[1].trim_space()
+			
 			env_map[key] = value
 		}
 	}
