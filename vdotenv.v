@@ -102,7 +102,7 @@ fn parse_contents(contents string) map[string]string {
 fn parse_lines(lines []string) map[string]string {
 	mut env_map := map[string]string{}
 	for line in lines {
-		if !line.starts_with('#') {
+		if !line.starts_with('#') && line.len > 0 {
 			segments_between_hashes := line.split('#')
 			mut quotes_are_open := false
 			mut segments_to_keep := []string{}
