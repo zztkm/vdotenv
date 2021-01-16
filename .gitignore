@@ -12,3 +12,4 @@ vdotenv_test.exe
 .env.parse
 
 examples/parse
+*.zztkm.vdotenv.md

@@ -55,23 +55,24 @@ pub fn print_file() {
 }
 
 // parse writes contents of files into a format easily parsed by other systems without modifying environment
-pub fn parse(filenames ...string) string {
+pub fn parse(include_names bool, filenames ...string) string {
 	mut files := parse_files(filenames)
 	mut output_builder := strings.new_builder(100)
-	output_builder.write('{')
+	output_builder.write('{ ')
 	fnames := files.keys()
-	for file_ndx in 0..fnames.len {
+	for file_ndx in 0 .. fnames.len {
 		variables := files[fnames[file_ndx]]
 		keys := variables.keys()
 		fname := fnames[file_ndx]
-		output_builder.write('/* file: $fname */ ')
-		for i in 0..keys.len {
-			quoted_var := variables[keys[i]].replace('\"', '\\\"')
-			output_builder.write('"${keys[i]}" : "${quoted_var}"')
+		if include_names {
+			output_builder.write('/* file: $fname */ ')
+		}
+		for i in 0 .. keys.len {
+			quoted_var := variables[keys[i]].replace('"', '\\"')
+			output_builder.write('"${keys[i]}" : "$quoted_var"')
 			if i < keys.len - 1 {
 				output_builder.write(', ')
-			}
-			else {
+			} else {
 				output_builder.write('')
 			}
 		}
@@ -81,7 +82,6 @@ pub fn parse(filenames ...string) string {
 		output_builder.write(' ')
 	}
 	output_builder.write('}')
-
 	return output_builder.str()
 }
 
@@ -122,9 +122,9 @@ fn read_env_var(keys []string) map[string]string {
 	return env_map
 }
 
-// parse_files parse the contents of a variable number of files into map of environment variables by file 
-fn parse_files(filenames []string) &map[string]map[string]string {
-	mut files := &map[string]map[string]string{}
+// parse_files parse the contents of a variable number of files into map of environment variables by file
+fn parse_files(filenames []string) map[string]map[string]string {
+	mut files := map[string]map[string]string{}
 	if filenames.len > 0 {
 		for filename in filenames {
 			contents := read_file(filename)
@@ -136,7 +136,6 @@ fn parse_files(filenames []string) &map[string]map[string]string {
 		variables := parse_contents(contents)
 		files['.env'] = variables
 	}
-
 	return files
 }
 
@@ -157,7 +156,7 @@ fn parse_lines(lines []string) map[string]string {
 			mut quotes_are_open := false
 			mut segments_to_keep := []string{}
 			for segment in segments_between_hashes {
-				if segment.count('"') == 1 || segment.count("\'") == 1 {
+				if segment.count('"') == 1 || segment.count("'") == 1 {
 					if quotes_are_open {
 						quotes_are_open = false
 						segments_to_keep << segment
