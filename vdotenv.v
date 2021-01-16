@@ -2,6 +2,7 @@ module vdotenv
 
 import os
 import time
+import strings
 
 // load create environment variables from the values in specified files; default to .env
 // [note: Does not overwrite env variables that already exist.]
@@ -53,6 +54,37 @@ pub fn print_file() {
 	write_file(filename, format_env_map(os_env_map))
 }
 
+// parse writes contents of files into a format easily parsed by other systems without modifying environment
+pub fn parse(filenames ...string) string {
+	mut files := parse_files(filenames)
+	mut output_builder := strings.new_builder(100)
+	output_builder.write('{')
+	fnames := files.keys()
+	for file_ndx in 0..fnames.len {
+		variables := files[fnames[file_ndx]]
+		keys := variables.keys()
+		fname := fnames[file_ndx]
+		output_builder.write('/* file: $fname */ ')
+		for i in 0..keys.len {
+			quoted_var := variables[keys[i]].replace('\"', '\\\"')
+			output_builder.write('"${keys[i]}" : "${quoted_var}"')
+			if i < keys.len - 1 {
+				output_builder.write(', ')
+			}
+			else {
+				output_builder.write('')
+			}
+		}
+		if file_ndx < filenames.len - 1 {
+			output_builder.write(',')
+		}
+		output_builder.write(' ')
+	}
+	output_builder.write('}')
+
+	return output_builder.str()
+}
+
 // load_env_map sets/overwrites enviroments variables with values from env_map
 fn load_env_map(env_map map[string]string, over_load bool) {
 	for env in env_map.keys() {
@@ -88,6 +120,24 @@ fn read_env_var(keys []string) map[string]string {
 		env_map[key] = os.getenv(key)
 	}
 	return env_map
+}
+
+// parse_files parse the contents of a variable number of files into map of environment variables by file 
+fn parse_files(filenames []string) &map[string]map[string]string {
+	mut files := &map[string]map[string]string{}
+	if filenames.len > 0 {
+		for filename in filenames {
+			contents := read_file(filename)
+			variables := parse_contents(contents)
+			files[filename] = variables
+		}
+	} else {
+		contents := read_file('.env')
+		variables := parse_contents(contents)
+		files['.env'] = variables
+	}
+
+	return files
 }
 
 // parse_contents parses the contents of a file's contents and returns a map of environment variable
