@@ -9,3 +9,7 @@ vdotenv_test.exe
 *.dylib
 *.dll
 .env
+.env.parse
+
+examples/parse
+*.zztkm.vdotenv.md
