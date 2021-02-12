@@ -170,7 +170,13 @@ fn parse_lines(lines []string) map[string]string {
 			}
 			mut new_line := segments_to_keep.join('#')
 			key := new_line.split('=')[0].trim_space()
-			value := new_line.split('=')[1].trim_space()
+			mut value := new_line.split('=')[1].trim_space()
+
+			if value.count('"') == 2 || value.count("'") == 2 {
+				value = value.trim('"\'')
+				value = value.replace('\\"', '"')
+				value = value.replace('\\n', '\n')
+			}
 			env_map[key] = value
 		}
 	}
