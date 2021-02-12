@@ -172,6 +172,7 @@ fn parse_lines(lines []string) map[string]string {
 			key := new_line.split('=')[0].trim_space()
 			mut value := new_line.split('=')[1].trim_space()
 
+			// check quoted values
 			if value.count('"') == 2 || value.count("'") == 2 {
 				value = value.trim('"\'')
 				value = value.replace('\\"', '"')
