@@ -1,6 +1,6 @@
 Module {
 	name: 'vdotenv'
-	version: '0.3.0'
+	version: '0.3.1'
 	description: 'which loads env vars from a .env file'
 	dependencies: []
 	license: 'MIT'
