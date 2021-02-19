@@ -9,8 +9,10 @@ doc:
 	v doc -o docs -f markdown .
 
 ## Run test
-test:
+test: vdotenv_test.v
+	cp testfile/.env testfile/.env.parse .
 	v test .
+	clean
 
 ## Report suspicious code constructs.
 vet:
@@ -22,7 +24,7 @@ format:
 
 ## Clean repository
 clean:
-	rm vdotenv_test
+	rm .env .env.parse
 
 ## Show help
 help:
