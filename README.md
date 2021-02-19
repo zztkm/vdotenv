@@ -70,7 +70,7 @@ vdotenv.load(".env", ".env.develop") // load `.env` and `.env.develop`
 ```
 
 You can write comments in the env file:
-```v
+```
 # This is comment
 FOO=BAR
 API_URL=YOUR_API_URL # This is inline comment
