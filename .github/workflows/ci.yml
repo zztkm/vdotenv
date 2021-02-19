@@ -1,5 +1,3 @@
-# This is a basic workflow to help you get started with Actions
-
 name: CI 
 
 # Controls when the action will run. 
@@ -28,4 +26,4 @@ jobs:
           v-version: latest
         id: v
       - name: Run V tests
-        run: v test .
+        run: make test
