@@ -61,7 +61,7 @@ pub fn parse(include_names bool, filenames ...string) string {
 	output_builder.write('{ ')
 	fnames := files.keys()
 	for file_ndx in 0 .. fnames.len {
-		variables := files[fnames[file_ndx]]
+		variables := files[fnames[file_ndx]].clone()
 		keys := variables.keys()
 		fname := fnames[file_ndx]
 		if include_names {
@@ -129,12 +129,12 @@ fn parse_files(filenames []string) map[string]map[string]string {
 		for filename in filenames {
 			contents := read_file(filename)
 			variables := parse_contents(contents)
-			files[filename] = variables
+			files[filename] = variables.clone()
 		}
 	} else {
 		contents := read_file('.env')
 		variables := parse_contents(contents)
-		files['.env'] = variables
+		files['.env'] = variables.clone()
 	}
 	return files
 }
