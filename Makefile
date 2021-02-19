@@ -10,9 +10,8 @@ doc:
 
 ## Run test
 test: vdotenv_test.v
-	cp testfile/.env testfile/.env.parse .
+	cp testfiles/.env testfiles/.env.parse .
 	v test .
-	clean
 
 ## Report suspicious code constructs.
 vet:
