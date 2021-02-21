@@ -1,5 +1,8 @@
 # dotenv module for V
 
+English
+/ [Japanese](./docs/README_ja.md)
+
 Which loads env vars from a .env file.  
 Inspired by https://github.com/joho/godotenv.
 
