@@ -23,7 +23,7 @@ jobs:
       - name: Set up V version latest
         uses: nocturlab/setup-vlang-action@v1
         with:
-          v-version: latest
+          v-version: master
         id: v
       - name: Run V tests
         run: make test
