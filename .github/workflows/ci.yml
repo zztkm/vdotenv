@@ -23,8 +23,7 @@ jobs:
       - name: Set up V version latest
         uses: nocturlab/setup-vlang-action@v1
         with:
-          # Use `master` branch until the V language is stable.
-          v-version: master
+          v-version: latest
         id: v
       - name: Run V tests
         run: make test
