@@ -58,30 +58,30 @@ pub fn print_file() {
 pub fn parse(include_names bool, filenames ...string) string {
 	mut files := parse_files(filenames)
 	mut output_builder := strings.new_builder(100)
-	output_builder.write('{ ')
+	output_builder.write_string('{ ')
 	fnames := files.keys()
 	for file_ndx in 0 .. fnames.len {
 		variables := files[fnames[file_ndx]].clone()
 		keys := variables.keys()
 		fname := fnames[file_ndx]
 		if include_names {
-			output_builder.write('/* file: $fname */ ')
+			output_builder.write_string('/* file: $fname */ ')
 		}
 		for i in 0 .. keys.len {
 			quoted_var := variables[keys[i]].replace('"', '\\"')
-			output_builder.write('"${keys[i]}" : "$quoted_var"')
+			output_builder.write_string('"${keys[i]}" : "$quoted_var"')
 			if i < keys.len - 1 {
-				output_builder.write(', ')
+				output_builder.write_string(', ')
 			} else {
-				output_builder.write('')
+				output_builder.write_string('')
 			}
 		}
 		if file_ndx < filenames.len - 1 {
-			output_builder.write(',')
+			output_builder.write_string(',')
 		}
-		output_builder.write(' ')
+		output_builder.write_string(' ')
 	}
-	output_builder.write('}')
+	output_builder.write_string('}')
 	return output_builder.str()
 }
 
