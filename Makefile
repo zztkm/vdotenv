@@ -6,7 +6,8 @@ setup:
 
 ## Update module document
 doc:
-	v doc -o docs -f markdown .
+	v doc -o docs/ -f markdown .
+	mv docs/.md docs/vdotenv.md
 
 ## Run test
 test: vdotenv_test.v
