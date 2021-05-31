@@ -12,7 +12,7 @@ doc:
 ## Run test
 test: vdotenv_test.v
 	cp testfiles/.env testfiles/.env.parse .
-	v test .
+	v test vdotenv_test.v
 	rm .env .env.parse
 
 ## Report suspicious code constructs.
