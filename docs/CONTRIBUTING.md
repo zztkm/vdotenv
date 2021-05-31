@@ -26,25 +26,31 @@ Good pull requests are an amazing help.
 
 [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the project, clone your fork, and configure the remotes:
 
-```bash
+```console
   $ git clone https://github.com/<your-username>/vdotenv.git
   $ cd vdotenv
   $ git remote add upstream https://github.com/zztkm/vdotenv.git
 ```
 
 Create a new topic branch to contain your feature, change, or fix:
-```bash
+```console
   $ git checkout -b <topic-branch-name>
 ```
 
+Development workflow:
+1. Add features or fix bugs, etc.
+2. Create tests for your work.
+3. Run the test.
+	- `make test`
+
 Locally merge (or rebase) the upstream development branch into your topic branch:
 
-```bash
-  $ git pull upstream master
+```console
+  $ git pull upstream main
 ```
 
 Push your topic branch up to your fork:
-```bash
+```console
 # Always run v fmt -w file.v before pushing your code.
   $ make doc
   $ git push origin <topic-branch-name>
