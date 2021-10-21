@@ -88,3 +88,9 @@ API_URL=YOUR_API_URL # This is inline comment
 ## License
 
 [MIT License](LICENSE.txt)
+
+[docs]: https://github.com/zztkm/vdotenv
+[version-badge]: https://img.shields.io/github/v/release/zztkm/vdotenv?logo=github&logoColor=white
+[version-url]: https://github.com/zztkm/vdotenv/releases/latest
+[workflow-badge]: https://img.shields.io/github/workflow/status/zztkm/vdotenv/CI?label=test&logo=github&logoColor=white
+[workflow-url]: https://github.com/zztkm/vdotenv/actions?query=workflow%3ACI
