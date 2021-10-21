@@ -1,9 +1,11 @@
 # dotenv module for V
 
+[![Latest version][version-badge]][version-url] [![Workflow status][workflow-badge]][workflow-url]
+
 English
 / [Japanese](./docs/README_ja.md)
 
-Which loads env vars from a .env file.  
+Which loads env vars from a .env file.
 Inspired by https://github.com/joho/godotenv.
 
 
