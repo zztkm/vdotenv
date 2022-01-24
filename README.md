@@ -1,6 +1,5 @@
 # dotenv module for V
-
-[![Latest version][version-badge]][version-url] [![Workflow status][workflow-badge]][workflow-url]
+[![Latest version][version-badge]][version-url] [![CI](https://github.com/zztkm/vdotenv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zztkm/vdotenv/actions/workflows/ci.yml)
 
 Once the V language is stable, a stable version of vdotenv will be released.
 
