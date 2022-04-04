@@ -33,4 +33,4 @@ jobs:
         shell: bash
 
       - name: Run tests
-        run: task test
+        run: ./bin/task test
