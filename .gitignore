@@ -11,3 +11,5 @@ vdotenv_test.exe
 
 examples/parse
 *.zztkm.vdotenv.md
+
+vls.log

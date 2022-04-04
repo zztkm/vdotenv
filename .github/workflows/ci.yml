@@ -18,7 +18,6 @@ jobs:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     runs-on: ${{ matrix.os }}
 
-
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Install V
@@ -29,5 +28,9 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
 
+      - name: Install Task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+        shell: bash
+
       - name: Run tests
-        run: make test
+        run: task test
