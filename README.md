@@ -95,3 +95,13 @@ API_URL=YOUR_API_URL # This is inline comment
 [version-url]: https://github.com/zztkm/vdotenv/releases/latest
 [workflow-badge]: https://img.shields.io/github/workflow/status/zztkm/vdotenv/CI?label=test&logo=github&logoColor=white
 [workflow-url]: https://github.com/zztkm/vdotenv/actions?query=workflow%3ACI
+
+## Acknowledgement
+
+- [ivixvi](https://github.com/ivixvi)
+- [ksk001100](https://github.com/ksk001100)
+- [nyx-litenite](https://github.com/nyx-litenite)
+
+## Author
+
+- [zztkm](https://github.com/zztkm/vdotenv)

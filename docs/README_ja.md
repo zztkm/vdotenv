@@ -86,3 +86,13 @@ API_URL=YOUR_API_URL # This is inline comment
 ## License
 
 [MIT License](LICENSE.txt)
+
+## 謝辞
+
+- [ivixvi](https://github.com/ivixvi)
+- [ksk001100](https://github.com/ksk001100)
+- [nyx-litenite](https://github.com/nyx-litenite)
+
+## 開発者
+
+- [zztkm](https://github.com/zztkm/vdotenv)
