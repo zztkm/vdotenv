@@ -96,6 +96,11 @@ API_URL=YOUR_API_URL # This is inline comment
 [workflow-badge]: https://img.shields.io/github/workflow/status/zztkm/vdotenv/CI?label=test&logo=github&logoColor=white
 [workflow-url]: https://github.com/zztkm/vdotenv/actions?query=workflow%3ACI
 
+## TDOO
+
+- [ ] [cli app](https://github.com/zztkm/vdotenv/issues/13)
+- [ ] README: add tutorial(for dotenv beginner)
+
 ## Acknowledgement
 
 - [ivixvi](https://github.com/ivixvi)
