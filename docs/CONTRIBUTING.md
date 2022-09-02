@@ -34,7 +34,7 @@ Good pull requests are an amazing help.
 
 Create a new topic branch to contain your feature, change, or fix:
 ```console
-  $ git checkout -b <topic-branch-name>
+  $ git switch -c <topic-branch-name>
 ```
 
 Development workflow:

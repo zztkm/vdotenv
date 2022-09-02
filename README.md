@@ -1,52 +1,21 @@
 # dotenv module for V
 [![Latest version][version-badge]][version-url] [![CI](https://github.com/zztkm/vdotenv/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/zztkm/vdotenv/actions/workflows/ci.yml)
 
-Once the V language is stable, a stable version of vdotenv will be released.
-
 English
 / [Japanese](./docs/README_ja.md)
 
-Which loads env vars from a .env file.
-Inspired by https://github.com/joho/godotenv.
+vdotenv is a module to read environment variables from `.env` files
+
+- Which loads env vars from a .env file.
+- Existing environment variables can be overridden in the program
+- Inspired by https://github.com/joho/godotenv.
 
 
 [module document.](docs/vdotenv.md)
 
-## Installation and Import
-
-### Using vpm:
-
-Install/Update:
-```
-v install zztkm.vdotenv
-```
-
-Import:
-```v
-import zztkm.vdotenv
-```
-
-### Using github (least recommended):
-
-Install (from your project folder):
-```
-git clone https://github.com/zztkm/vdotenv.git
-```
-
-Update (from your project folder):
-```
-cd vdotenv
-git pull
-```
-
-Import:
-```
-import vdotenv
-```
-
 ## Usage
 
-Add your application configuration to your .env file in the root of your project:
+Add your application configuration to your `.env` file in the root of your project:
 ```
 S3_BUCKET=YOURS3BUCKET
 DYNAMODB_TABLE=YOURDYNAMODBTABLE
@@ -81,6 +50,39 @@ You can write comments in the env file:
 FOO=BAR
 API_URL=YOUR_API_URL # This is inline comment
 ```
+
+## Installation and Import
+
+### Using vpm:
+
+Install/Update:
+```
+v install zztkm.vdotenv
+```
+
+Import:
+```v
+import zztkm.vdotenv
+```
+
+### Using github (least recommended):
+
+Install (from your project folder):
+```
+git clone https://github.com/zztkm/vdotenv.git
+```
+
+Update (from your project folder):
+```
+cd vdotenv
+git pull
+```
+
+Import:
+```
+import vdotenv
+```
+
 
 ## Contributing
 

@@ -9,37 +9,6 @@ https://github.com/joho/godotenv に触発されて作りました。
 
 [module document.](docs/vdotenv.md)
 
-## Installation and Import
-
-### Using vpm:
-
-Install/Update:
-```
-v install zztkm.vdotenv
-```
-
-Import:
-```v
-import zztkm.vdotenv
-```
-
-### Using github (least recommended):
-
-Install (from your project folder):
-```
-git clone https://github.com/zztkm/vdotenv.git
-```
-
-Update (from your project folder):
-```
-cd vdotenv
-git pull
-```
-
-Import:
-```
-import vdotenv
-```
 
 ## Usage
 
@@ -77,6 +46,38 @@ envファイルにコメントを書くことができます。
 # This is comment
 FOO=BAR
 API_URL=YOUR_API_URL # This is inline comment
+```
+
+## Installation and Import
+
+### Using vpm:
+
+Install/Update:
+```
+v install zztkm.vdotenv
+```
+
+Import:
+```v
+import zztkm.vdotenv
+```
+
+### Using github (least recommended):
+
+Install (from your project folder):
+```
+git clone https://github.com/zztkm/vdotenv.git
+```
+
+Update (from your project folder):
+```
+cd vdotenv
+git pull
+```
+
+Import:
+```
+import vdotenv
 ```
 
 ## Contributing
