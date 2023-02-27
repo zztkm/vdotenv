@@ -28,6 +28,18 @@ pub fn over_load(filenames ...string) {
 	}
 }
 
+pub fn marshal(env_map map[string]string) string {
+	return ''
+}
+
+pub fn unmarshal(src string) map[string]string {
+	return map[string]string{}
+}
+
+pub fn write(env_map map[string]string, filename string) ! {
+	os.write_file(filename, format_env_map(env_map))!
+}
+
 // print_terminal prints the values set in .env file to the terminal
 // .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
 pub fn print_terminal() {
@@ -43,7 +55,7 @@ pub fn print_terminal() {
 
 // print_file writes the values set in .env file to a file
 // .envファイルに記載されている環境変数に関して，現在の設定状況をファイルに書き出す．
-pub fn print_file() {
+pub fn print_file() ! {
 	filename := '.env'
 	contents := read_file(filename)
 	if contents == '' {
@@ -51,7 +63,7 @@ pub fn print_file() {
 	}
 	file_env_map := parse_contents(contents)
 	os_env_map := read_env_var(file_env_map.keys())
-	write_file(filename, format_env_map(os_env_map))
+	write_file(filename, format_env_map(os_env_map))!
 }
 
 // parse writes contents of files into a format easily parsed by other systems without modifying environment
@@ -65,11 +77,11 @@ pub fn parse(include_names bool, filenames ...string) string {
 		keys := variables.keys()
 		fname := fnames[file_ndx]
 		if include_names {
-			output_builder.write_string('/* file: $fname */ ')
+			output_builder.write_string('/* file: ${fname} */ ')
 		}
 		for i in 0 .. keys.len {
 			quoted_var := variables[keys[i]].replace('"', '\\"')
-			output_builder.write_string('"${keys[i]}" : "$quoted_var"')
+			output_builder.write_string('"${keys[i]}" : "${quoted_var}"')
 			if i < keys.len - 1 {
 				output_builder.write_string(', ')
 			} else {
@@ -97,19 +109,16 @@ fn load_env_map(env_map map[string]string, over_load bool) {
 // read_file read file contents into a string fileを読み込む
 fn read_file(filename string) string {
 	contents := os.read_file(filename.trim_space()) or {
-		println('Failed to open $filename')
+		println('Failed to open ${filename}')
 		return ''
 	}
 	return contents
 }
 
 // write_file write contents to timestamped file fileに書き出す
-fn write_file(filename string, contents string) {
-	write_filename := './$filename.trim_space() $time.now()'
-	os.write_file(write_filename, contents) or {
-		println('Failed to open $write_filename')
-		return
-	}
+fn write_file(filename string, contents string) ! {
+	write_filename := './${filename.trim_space()} ${time.now()}'
+	os.write_file(write_filename, contents)!
 }
 
 // read_env_var match the specified keys to their values and return the resulting map
@@ -189,7 +198,7 @@ fn parse_lines(lines []string) map[string]string {
 fn format_env_map(env_map map[string]string) string {
 	mut format_string := ''
 	for key in env_map.keys() {
-		format_string += '$key=${env_map[key]}\n'
+		format_string += '${key}=${env_map[key]}\n'
 	}
 	return format_string
 }

@@ -1,6 +1,14 @@
-import zztkm.vdotenv as denv
+import os
 
-test := denv.parse(true, '.env', '.env.parse')
-println(test)
-no_names := denv.parse(false)
-println(no_names)
+import zztkm.vdotenv
+
+fn main() {
+    // loads env vars from a .env file.
+    vdotenv.load()
+
+    s3_bucket := os.getenv('S3_BUCKET')
+    dynamodb_table := os.getenv('DYNAMODB_TABLE')
+	println(s3_bucket)
+	println(dynamodb_table)
+    // ...
+}

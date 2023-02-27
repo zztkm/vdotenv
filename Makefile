@@ -11,17 +11,17 @@ doc:
 
 ## Run test
 test: vdotenv_test.v
-	cp testfiles/.env testfiles/.env.parse .
+	cp testdata/.env testdata/.env.parse .
 	v test vdotenv_test.v
 	rm .env .env.parse
 
 ## Report suspicious code constructs.
 vet:
-	v vet *.v
+	v vet .
 
 ## Format .v files
-format:
-	v fmt -w *.v
+fmt:
+	v fmt -w .
 
 ## Clean repository
 clean:
