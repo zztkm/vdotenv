@@ -28,14 +28,18 @@ pub fn over_load(filenames ...string) {
 	}
 }
 
+// marshal outputs the given environment as a dotenv-formatted environment file.
+// Each line is in the format: KEY="VALUE".
 pub fn marshal(env_map map[string]string) string {
-	return ''
+	return format_env_map(env_map)
 }
 
-pub fn unmarshal(src string) map[string]string {
-	return map[string]string{}
+// unmarshal reads an env file from a string, returning a map of keys and values.
+pub fn unmarshal(str string) map[string]string {
+	return parse_contents(str)
 }
 
+// write serializes the given environment and writes it to a file.
 pub fn write(env_map map[string]string, filename string) ! {
 	os.write_file(filename, format_env_map(env_map))!
 }
