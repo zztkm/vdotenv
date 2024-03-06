@@ -67,19 +67,12 @@ import zztkm.vdotenv
 
 ### Using github (least recommended):
 
-Install (from your project folder):
-```
-git clone https://github.com/zztkm/vdotenv.git
-```
-
-Update (from your project folder):
-```
-cd vdotenv
-git pull
+```bash
+v install --git https://github.com/hungrybluedev/whisker
 ```
 
 Import:
-```
+```v
 import vdotenv
 ```
 
