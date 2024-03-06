@@ -5,7 +5,7 @@ doc:
 
 ## Run test
 .PHONY: test
-test: vdotenv_test.v
+test:
 	cp testdata/.env testdata/.env.parse .
 	v test vdotenv_test.v
 	rm .env .env.parse
