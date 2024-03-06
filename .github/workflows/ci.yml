@@ -25,12 +25,7 @@ jobs:
         with:
           check-latest: true
 
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-
-      - name: Install Task
-        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
-        shell: bash
+      - uses: actions/checkout@v4
 
       - name: Run tests
-        run: ./bin/task test
+        run: make test
