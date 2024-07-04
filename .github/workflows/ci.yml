@@ -21,7 +21,7 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - name: Install V
-        uses: vlang/setup-v@v1
+        uses: vlang/setup-v@v1.3
         with:
           check-latest: true
 
