@@ -28,7 +28,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Tests
-        run: make test
+        run: |
+          cp testdata/.env testdata/.env.parse .
+          v test vdotenv_test.v
 
       - name: Format
         run: v fmt -verify .
