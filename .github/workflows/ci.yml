@@ -27,5 +27,12 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - name: Run tests
+      - name: Tests
         run: make test
+
+      - name: Format
+        run: v fmt -verify .
+
+      - name: Lint
+        run: v vet -W .
+
