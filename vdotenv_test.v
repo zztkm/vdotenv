@@ -71,7 +71,7 @@ fn test_marshal_prevents_variable_injection() {
 	env_map := {
 		'USER_INPUT': 'hello\nVDOTENV_PROBE_ADMIN=enabled'
 	}
-	encoded := marshal(env_map)
+	encoded := marshal(env_map)!
 	decoded := unmarshal(encoded)
 	assert 'VDOTENV_PROBE_ADMIN' !in decoded
 	assert decoded == env_map
@@ -87,7 +87,28 @@ fn test_marshal_round_trips_special_values() {
 		env_map := {
 			'VALUE': value
 		}
-		assert unmarshal(marshal(env_map)) == env_map
+		assert unmarshal(marshal(env_map)!) == env_map
+	}
+}
+
+fn test_marshal_uses_quoted_escaped_lines() {
+	assert marshal({
+		'VALUE': '\\"\n\r\t#='
+	})! == 'VALUE="\\\\\\"\\n\\r\\t#="\n'
+	assert marshal(map[string]string{})! == ''
+}
+
+fn test_marshal_round_trips_escape_combinations() {
+	parts := ['', '\\', '"', "'", '#', '=', '\n', '\r', '\t', ' ', 'text']
+	for first in parts {
+		for second in parts {
+			for third in parts {
+				env_map := {
+					'VALUE': first + second + third
+				}
+				assert unmarshal(marshal(env_map)!) == env_map
+			}
+		}
 	}
 }
 
@@ -112,6 +133,12 @@ fn test_write_and_load_prevent_variable_injection() {
 	load(filename)
 	assert 'VDOTENV_PROBE_ADMIN' !in os.environ()
 	assert os.getenv('USER_INPUT') == env_map['USER_INPUT']
+	os.setenv('USER_INPUT', 'existing', true)
+	load(filename)
+	assert os.getenv('USER_INPUT') == 'existing'
+	over_load(filename)
+	assert os.getenv('USER_INPUT') == env_map['USER_INPUT']
+	assert 'VDOTENV_PROBE_ADMIN' !in os.environ()
 }
 
 fn test_write_rejects_invalid_keys_without_changing_file() {
@@ -124,12 +151,24 @@ fn test_write_rejects_invalid_keys_without_changing_file() {
 		'BAD.KEY', '1BAD', '#BAD', 'BAD"KEY', 'BAD\x00KEY', '日本語']
 	for key in invalid_keys {
 		os.write_file(filename, 'ORIGINAL=value\n')!
+		mut marshal_rejected := false
+		marshal({
+			key: 'value'
+		}) or { marshal_rejected = true }
+		assert marshal_rejected, 'Expected marshal to reject invalid key'
 		mut rejected := false
 		write({
 			key: 'value'
 		}, filename) or { rejected = true }
 		assert rejected, 'Expected invalid key to be rejected'
 		assert os.read_file(filename)! == 'ORIGINAL=value\n'
+		new_filename := os.join_path(directory, 'new.env')
+		mut new_file_rejected := false
+		write({
+			key: 'value'
+		}, new_filename) or { new_file_rejected = true }
+		assert new_file_rejected
+		assert !os.exists(new_filename)
 	}
 }
 
@@ -140,7 +179,7 @@ fn test_marshal_accepts_portable_keys() {
 		'lower':    'two'
 		'UPPER':    'three'
 	}
-	assert unmarshal(marshal(env_map)) == env_map
+	assert unmarshal(marshal(env_map)!) == env_map
 }
 
 fn test_print_file_prevents_variable_injection() {
@@ -171,6 +210,24 @@ fn test_print_file_prevents_variable_injection() {
 	}
 }
 
+fn test_print_functions_propagate_invalid_key_errors() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	os.chdir(directory)!
+	os.write_file('.env', 'BAD-KEY=value\n')!
+	mut file_rejected := false
+	print_file() or { file_rejected = true }
+	assert file_rejected
+	assert os.ls(directory)!.len == 1
+	mut terminal_rejected := false
+	print_terminal() or { terminal_rejected = true }
+	assert terminal_rejected
+}
+
 fn test_unmarshal_quoted_escapes_and_comments() {
 	contents := 'VALUE="a=b # hash \\"quote\\" \\\\ literal \\n newline" # comment\n'
 	assert unmarshal(contents) == {
@@ -184,6 +241,9 @@ fn test_unmarshal_quoted_escapes_and_comments() {
 	}
 	assert unmarshal('VALUE="C:\\path\\file"\n') == {
 		'VALUE': 'C:\\path\\file'
+	}
+	assert unmarshal("VALUE='literal \\n \\t \\r \\\\'\n") == {
+		'VALUE': 'literal \\n \\t \\r \\\\'
 	}
 }
 

@@ -51,6 +51,32 @@ FOO=BAR
 API_URL=YOUR_API_URL # This is inline comment
 ```
 
+## Serialization and compatibility
+
+`marshal()`, `write()`, `print_file()` and `print_terminal()` emit `KEY="VALUE"` lines.
+Keys must match `[A-Za-z_][A-Za-z0-9_]*`; invalid keys return an error rather than being written.
+Values escape backslashes, double quotes, LF, CR and tabs as `\\`, `\"`, `\n`, `\r` and `\t`.
+Spaces, `#`, `=` and single quotes are preserved inside the double-quoted value.
+
+```v
+env_map := { 'USER_INPUT': 'hello\nADMIN=enabled' }
+encoded := vdotenv.marshal(env_map) or { panic(err) }
+assert vdotenv.unmarshal(encoded) == env_map
+vdotenv.write(env_map, 'config.env') or { panic(err) }
+```
+
+**API change:** `marshal()` now returns `!string` instead of `string`, and `print_terminal()` now returns `!` instead of returning no value.
+Callers must propagate errors with `!` or handle them with `or { ... }`.
+`write()` and `print_file()` retain their Result signatures and also propagate key validation errors.
+Validation errors do not create or overwrite output files.
+
+Reading still supports unquoted values and inline comments.
+Double-quoted values decode the escapes above; unknown escapes retain their backslash.
+Single-quoted values are literal, including backslashes (unlike the previous decoder, which also expanded `\n` in single quotes).
+Only the first `=` separates a key from its value, and `#` starts a comment only outside a quoted value.
+Physical multiline quoted values and variable interpolation are not supported; write multiline values using escaped `\n` or `\r`.
+The output is intended for dotenv readers, not for execution as a shell script.
+
 ## Installation and Import
 
 ### Using vpm:

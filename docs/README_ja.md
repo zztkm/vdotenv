@@ -48,6 +48,32 @@ FOO=BAR
 API_URL=YOUR_API_URL # This is inline comment
 ```
 
+## シリアライズ形式と互換性
+
+`marshal()`、`write()`、`print_file()`、`print_terminal()` は `KEY="VALUE"` 形式で出力します。
+キーは `[A-Za-z_][A-Za-z0-9_]*` に制限し、不正なキーがあればエラーを返します。
+値のバックスラッシュ、二重引用符、LF、CR、タブは、それぞれ `\\`、`\"`、`\n`、`\r`、`\t` にエスケープします。
+引用符内の空白、`#`、`=`、単一引用符は保持します。
+
+```v
+env_map := { 'USER_INPUT': 'hello\nADMIN=enabled' }
+encoded := vdotenv.marshal(env_map) or { panic(err) }
+assert vdotenv.unmarshal(encoded) == env_map
+vdotenv.write(env_map, 'config.env') or { panic(err) }
+```
+
+`marshal()` の戻り値は `string` から `!string` に、`print_terminal()` は戻り値なしから `!` に変更しています。
+呼び出し元では `!` でエラーを伝播するか、`or { ... }` で処理してください。
+`write()` と `print_file()` の Result 型は変更せず、キーの検証エラーも返すようにしています。
+検証エラーが発生した場合、出力ファイルの作成や上書きは行いません。
+
+読み込みでは、引用符なしの値とインラインコメントを引き続き利用できます。
+二重引用符内では上記のエスケープを復元し、未知のエスケープはバックスラッシュごと保持します。
+単一引用符内は文字列をそのまま扱うため、従来と異なり `\n` も展開しません。
+最初の `=` だけをキーと値の区切りとし、引用符の外にある `#` だけをコメントの開始とみなします。
+物理的に複数行にまたがる引用値と変数展開には対応しないため、複数行の値には `\n` や `\r` を使用してください。
+出力は dotenv の読み込み用であり、シェルスクリプトとして実行するための形式ではありません。
+
 ## Installation and Import
 
 ### Using vpm:
