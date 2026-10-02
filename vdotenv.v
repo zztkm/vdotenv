@@ -4,27 +4,47 @@ import os
 import time
 import strings
 
+// ParseError identifies a malformed dotenv line without exposing its key or value.
+// line is the 1-based physical line number within the input or file; reason is a safe description.
+pub struct ParseError {
+pub:
+	line   int
+	reason string
+}
+
+// msg returns the line number and reason without exposing input keys or values.
+pub fn (err ParseError) msg() string {
+	return 'dotenv parse error on line ${err.line}: ${err.reason}'
+}
+
+// code returns the default error code (0) required by IError.
+pub fn (err ParseError) code() int {
+	return 0
+}
+
 // load create environment variables from the values in specified files; default to .env
 // [note: Does not overwrite env variables that already exist.]
-pub fn load(filenames ...string) {
+// Returns ParseError before setting any variables from a malformed file.
+pub fn load(filenames ...string) ! {
 	if filenames.len > 0 {
 		for filename in filenames {
-			load_env(filename, false)
+			load_env(filename, false)!
 		}
 	} else {
-		load_env('.env', false)
+		load_env('.env', false)!
 	}
 }
 
 // over_load create environment variables from specified files; default to .env
 // [note: Overwrites env variables that already exist.] 環境変数を上書きする.
-pub fn over_load(filenames ...string) {
+// Returns ParseError before setting any variables from a malformed file.
+pub fn over_load(filenames ...string) ! {
 	if filenames.len > 0 {
 		for filename in filenames {
-			load_env(filename, true)
+			load_env(filename, true)!
 		}
 	} else {
-		load_env('.env', true)
+		load_env('.env', true)!
 	}
 }
 
@@ -39,7 +59,8 @@ pub fn marshal(env_map map[string]string) !string {
 // unmarshal reads an env file from a string, returning a map of keys and values.
 // Double-quoted values decode \\, \", \n, \r and \t escapes; single-quoted values are literal.
 // Hashes inside quotes and equals signs in values are preserved.
-pub fn unmarshal(str string) map[string]string {
+// Blank lines and indented comments are ignored. Malformed lines return ParseError.
+pub fn unmarshal(str string) !map[string]string {
 	return parse_contents(str)
 }
 
@@ -52,20 +73,22 @@ pub fn write(env_map map[string]string, filename string) ! {
 
 // print_terminal prints the values set in .env file to the terminal
 // .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
-// Returns an error if a key cannot be serialized.
+// Returns ParseError for malformed input, or an error if a key cannot be serialized.
+// No environment values are printed on error.
 pub fn print_terminal() ! {
 	filename := '.env'
 	contents := read_file(filename)
 	if contents == '' {
 		return
 	}
-	file_env_map := parse_contents(contents)
+	file_env_map := parse_contents(contents)!
 	os_env_map := read_env_var(file_env_map.keys())
 	println(format_env_map(os_env_map)!)
 }
 
 // print_file writes the values set in .env file to a file
-// Returns an error if a key cannot be serialized, without creating an output file.
+// Returns ParseError for malformed input, or an error if a key cannot be serialized,
+// without creating an output file.
 // .envファイルに記載されている環境変数に関して，現在の設定状況をファイルに書き出す．
 pub fn print_file() ! {
 	filename := '.env'
@@ -73,15 +96,16 @@ pub fn print_file() ! {
 	if contents == '' {
 		return
 	}
-	file_env_map := parse_contents(contents)
+	file_env_map := parse_contents(contents)!
 	os_env_map := read_env_var(file_env_map.keys())
 	contents_to_write := format_env_map(os_env_map)!
 	write_file(filename, contents_to_write)!
 }
 
 // parse writes contents of files into a format easily parsed by other systems without modifying environment
-pub fn parse(include_names bool, filenames ...string) string {
-	mut files := parse_files(filenames)
+// Returns ParseError for malformed input instead of returning partial output.
+pub fn parse(include_names bool, filenames ...string) !string {
+	mut files := parse_files(filenames)!
 	mut output_builder := strings.new_builder(100)
 	output_builder.write_string('{ ')
 	fnames := files.keys()
@@ -145,17 +169,17 @@ fn read_env_var(keys []string) map[string]string {
 }
 
 // parse_files parse the contents of a variable number of files into map of environment variables by file
-fn parse_files(filenames []string) map[string]map[string]string {
+fn parse_files(filenames []string) !map[string]map[string]string {
 	mut files := map[string]map[string]string{}
 	if filenames.len > 0 {
 		for filename in filenames {
 			contents := read_file(filename)
-			variables := parse_contents(contents)
+			variables := parse_contents(contents)!
 			files[filename] = variables.clone()
 		}
 	} else {
 		contents := read_file('.env')
-		variables := parse_contents(contents)
+		variables := parse_contents(contents)!
 		files['.env'] = variables.clone()
 	}
 	return files
@@ -163,26 +187,39 @@ fn parse_files(filenames []string) map[string]map[string]string {
 
 // parse_contents parses the contents of a file's contents and returns a map of environment variable
 // .envファイルから読み込んだcontentsをkeys and values で返却する．
-fn parse_contents(contents string) map[string]string {
+fn parse_contents(contents string) !map[string]string {
 	lines := contents.split_into_lines()
 	return parse_lines(lines)
 }
 
 // parse_lines return a map of environment variables by parsing the lines of a file
 // env file から読み込んだ各行を keys and values で返却する.
-fn parse_lines(lines []string) map[string]string {
+fn parse_lines(lines []string) !map[string]string {
 	mut env_map := map[string]string{}
-	for raw_line in lines {
+	for index, raw_line in lines {
 		line := raw_line.trim_space()
 		if line == '' || line.starts_with('#') {
 			continue
 		}
-		separator := line.index('=') or { continue }
+		separator := line.index('=') or {
+			return ParseError{
+				line:   index + 1
+				reason: 'missing = separator'
+			}
+		}
 		key := line[..separator].trim_space()
 		if key == '' {
-			continue
+			return ParseError{
+				line:   index + 1
+				reason: 'empty key'
+			}
 		}
-		value := parse_value(line[separator + 1..]) or { continue }
+		value := parse_value(line[separator + 1..]) or {
+			return ParseError{
+				line:   index + 1
+				reason: 'invalid quoted value'
+			}
+		}
 		env_map[key] = value
 	}
 	return env_map
@@ -241,7 +278,7 @@ fn parse_value(raw_value string) ?string {
 }
 
 fn valid_env_key(key string) bool {
-	if key.len == 0 {
+	if key == '' {
 		return false
 	}
 	for i, ch in key.bytes() {
@@ -271,11 +308,11 @@ fn format_env_map(env_map map[string]string) !string {
 }
 
 // load_env parse the contents of the specified file to set/overload an environment variable
-fn load_env(filename string, overload_env bool) {
+fn load_env(filename string, overload_env bool) ! {
 	contents := read_file(filename)
 	if contents == '' {
 		return
 	}
-	env_map := parse_contents(contents)
+	env_map := parse_contents(contents)!
 	load_env_map(env_map, overload_env)
 }
