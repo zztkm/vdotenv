@@ -68,7 +68,7 @@ import zztkm.vdotenv
 ### Using github (least recommended):
 
 ```bash
-v install --git https://github.com/hungrybluedev/whisker
+v install --git https://github.com/zztkm/vdotenv
 ```
 
 Import:
