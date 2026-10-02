@@ -247,6 +247,56 @@ fn test_unmarshal_quoted_escapes_and_comments() {
 	}
 }
 
+fn test_unmarshal_ignores_whitespace_and_indented_comments() {
+	assert unmarshal(' \t\n  # comment\n\t# another comment\n VALUE = a=b=c # comment\nEMPTY=\n') == {
+		'VALUE': 'a=b=c'
+		'EMPTY': ''
+	}
+}
+
+fn test_print_file_rejects_malformed_lines_without_output() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	os.chdir(directory)!
+	malformed_lines := ['INVALID_LINE_SECRET', '=SECRET_VALUE', 'TOKEN="SECRET_VALUE',
+		"TOKEN='SECRET_VALUE", 'TOKEN="SECRET_VALUE" unexpected']
+	for line in malformed_lines {
+		contents := 'VALID=before\n  # comment\n${line}\nAFTER=after\n'
+		os.write_file('.env', contents)!
+		mut rejected := false
+		print_file() or {
+			rejected = true
+			assert err.msg().contains('line 3')
+			assert !err.msg().contains('SECRET')
+		}
+		assert rejected, 'Expected malformed input to return a parse error'
+		assert os.ls(directory)! == ['.env']
+		assert os.read_file('.env')! == contents
+	}
+}
+
+fn test_print_terminal_rejects_malformed_lines() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	os.chdir(directory)!
+	os.write_file('.env', 'VALID=before\nINVALID_LINE_SECRET\nAFTER=after\n')!
+	mut rejected := false
+	print_terminal() or {
+		rejected = true
+		assert err.msg().contains('line 2')
+		assert !err.msg().contains('SECRET')
+	}
+	assert rejected, 'Expected malformed input to return a parse error'
+}
+
 fn new_test_directory() !string {
 	directory := os.join_path(os.temp_dir(), 'vdotenv-${rand.ulid()}')
 	os.mkdir(directory)!
