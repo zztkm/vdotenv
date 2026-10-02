@@ -29,24 +29,31 @@ pub fn over_load(filenames ...string) {
 }
 
 // marshal outputs the given environment as a dotenv-formatted environment file.
-// Each line is in the format: KEY="VALUE".
-pub fn marshal(env_map map[string]string) string {
+// Each line is in the format: KEY="VALUE", with escaped backslashes, double quotes,
+// newlines, carriage returns and tabs. Keys must match [A-Za-z_][A-Za-z0-9_]*.
+// Returns an error for invalid keys.
+pub fn marshal(env_map map[string]string) !string {
 	return format_env_map(env_map)
 }
 
 // unmarshal reads an env file from a string, returning a map of keys and values.
+// Double-quoted values decode \\, \", \n, \r and \t escapes; single-quoted values are literal.
+// Hashes inside quotes and equals signs in values are preserved.
 pub fn unmarshal(str string) map[string]string {
 	return parse_contents(str)
 }
 
 // write serializes the given environment and writes it to a file.
+// Invalid keys return an error without creating or overwriting the file.
 pub fn write(env_map map[string]string, filename string) ! {
-	os.write_file(filename, format_env_map(env_map))!
+	contents := format_env_map(env_map)!
+	os.write_file(filename, contents)!
 }
 
 // print_terminal prints the values set in .env file to the terminal
 // .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
-pub fn print_terminal() {
+// Returns an error if a key cannot be serialized.
+pub fn print_terminal() ! {
 	filename := '.env'
 	contents := read_file(filename)
 	if contents == '' {
@@ -54,10 +61,11 @@ pub fn print_terminal() {
 	}
 	file_env_map := parse_contents(contents)
 	os_env_map := read_env_var(file_env_map.keys())
-	println(format_env_map(os_env_map))
+	println(format_env_map(os_env_map)!)
 }
 
 // print_file writes the values set in .env file to a file
+// Returns an error if a key cannot be serialized, without creating an output file.
 // .envファイルに記載されている環境変数に関して，現在の設定状況をファイルに書き出す．
 pub fn print_file() ! {
 	filename := '.env'
@@ -67,7 +75,8 @@ pub fn print_file() ! {
 	}
 	file_env_map := parse_contents(contents)
 	os_env_map := read_env_var(file_env_map.keys())
-	write_file(filename, format_env_map(os_env_map))!
+	contents_to_write := format_env_map(os_env_map)!
+	write_file(filename, contents_to_write)!
 }
 
 // parse writes contents of files into a format easily parsed by other systems without modifying environment
@@ -163,48 +172,93 @@ fn parse_contents(contents string) map[string]string {
 // env file から読み込んだ各行を keys and values で返却する.
 fn parse_lines(lines []string) map[string]string {
 	mut env_map := map[string]string{}
-	for line in lines {
-		if !line.starts_with('#') && line.len > 0 {
-			segments_between_hashes := line.split('#')
-			mut quotes_are_open := false
-			mut segments_to_keep := []string{}
-			for segment in segments_between_hashes {
-				if segment.count('"') == 1 || segment.count("'") == 1 {
-					if quotes_are_open {
-						quotes_are_open = false
-						segments_to_keep << segment
-					} else {
-						quotes_are_open = true
-					}
-				}
-				if segments_to_keep.len == 0 || quotes_are_open {
-					segments_to_keep << segment
-				}
-			}
-			mut new_line := segments_to_keep.join('#')
-			key := new_line.split('=')[0].trim_space()
-			mut value := new_line.split('=')[1].trim_space()
-
-			// check quoted values
-			if value.count('"') == 2 || value.count("'") == 2 {
-				value = value.trim('"\'')
-				value = value.replace('\\"', '"')
-				value = value.replace('\\n', '\n')
-			}
-			env_map[key] = value
+	for raw_line in lines {
+		line := raw_line.trim_space()
+		if line == '' || line.starts_with('#') {
+			continue
 		}
+		separator := line.index('=') or { continue }
+		key := line[..separator].trim_space()
+		if key == '' {
+			continue
+		}
+		value := parse_value(line[separator + 1..]) or { continue }
+		env_map[key] = value
 	}
 	return env_map
 }
 
-// format_env_map format key-value pairs on new lines, key=value
-// keys and values で渡された値をkey=valueにフォーマットする．
-fn format_env_map(env_map map[string]string) string {
-	mut format_string := ''
-	for key in env_map.keys() {
-		format_string += '${key}=${env_map[key]}\n'
+// parse_value decodes quoted values without treating escaped quotes or hashes as delimiters.
+fn parse_value(raw_value string) ?string {
+	value := raw_value.trim_space()
+	if value == '' {
+		return ''
 	}
-	return format_string
+	quote := value[0]
+	if quote != `"` && quote != `'` {
+		return value.all_before('#').trim_space()
+	}
+	mut decoded := strings.new_builder(value.len)
+	mut i := 1
+	for i < value.len {
+		ch := value[i]
+		if ch == quote {
+			trailing := value[i + 1..].trim_space()
+			if trailing != '' && !trailing.starts_with('#') {
+				return none
+			}
+			return decoded.str()
+		}
+		if quote == `"` && ch == `\\` && i + 1 < value.len {
+			next := value[i + 1]
+			match next {
+				`\\`, `"` { decoded.write_u8(next) }
+				`n` { decoded.write_u8(`\n`) }
+				`r` { decoded.write_u8(`\r`) }
+				`t` { decoded.write_u8(`\t`) }
+				else {
+					// Preserve unknown escapes, e.g. in hand-written Windows paths.
+					decoded.write_u8(ch)
+					decoded.write_u8(next)
+				}
+			}
+			i += 2
+			continue
+		}
+		decoded.write_u8(ch)
+		i++
+	}
+	return none
+}
+
+fn valid_env_key(key string) bool {
+	if key.len == 0 {
+		return false
+	}
+	for i, ch in key.bytes() {
+		if ch == `_` || (ch >= `A` && ch <= `Z`) || (ch >= `a` && ch <= `z`) {
+			continue
+		}
+		if i > 0 && ch >= `0` && ch <= `9` {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// format_env_map validates keys and emits one quoted, escaped value per line.
+fn format_env_map(env_map map[string]string) !string {
+	mut output := strings.new_builder(100)
+	for key, value in env_map {
+		if !valid_env_key(key) {
+			return error('environment variable keys must match [A-Za-z_][A-Za-z0-9_]*')
+		}
+		escaped := value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r',
+			'\\r').replace('\t', '\\t')
+		output.write_string('${key}="${escaped}"\n')
+	}
+	return output.str()
 }
 
 // load_env parse the contents of the specified file to set/overload an environment variable
