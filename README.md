@@ -30,7 +30,7 @@ import zztkm.vdotenv
 
 fn main() {
     // loads env vars from a .env file.
-    vdotenv.load()
+    vdotenv.load() or { panic(err) }
 
     s3_bucket := os.getenv('S3_BUCKET')
     dynamodb_table := os.getenv('DYNAMODB_TABLE')
@@ -40,8 +40,8 @@ fn main() {
 ```
 By default, load looks for a file called .env in your current working directory, but you can also specify the file as follows:
 ```v
-vdotenv.load(".env.develop") // load `.env.development`
-vdotenv.load(".env", ".env.develop") // load `.env` and `.env.develop`
+vdotenv.load(".env.develop") or { panic(err) } // load `.env.develop`
+vdotenv.load(".env", ".env.develop") or { panic(err) } // load both files
 ```
 
 You can write comments in the env file:
@@ -61,7 +61,7 @@ Spaces, `#`, `=` and single quotes are preserved inside the double-quoted value.
 ```v
 env_map := { 'USER_INPUT': 'hello\nADMIN=enabled' }
 encoded := vdotenv.marshal(env_map) or { panic(err) }
-assert vdotenv.unmarshal(encoded) == env_map
+assert vdotenv.unmarshal(encoded) or { panic(err) } == env_map
 vdotenv.write(env_map, 'config.env') or { panic(err) }
 ```
 
@@ -76,6 +76,33 @@ Single-quoted values are literal, including backslashes (unlike the previous dec
 Only the first `=` separates a key from its value, and `#` starts a comment only outside a quoted value.
 Physical multiline quoted values and variable interpolation are not supported; write multiline values using escaped `\n` or `\r`.
 The output is intended for dotenv readers, not for execution as a shell script.
+
+## Parse errors and API compatibility
+
+Blank lines (including whitespace-only lines) and comments with leading whitespace are ignored.
+A missing `=`, an empty key, an unclosed quoted value, or non-comment text after a closing quote returns `vdotenv.ParseError`.
+Its `line` field is the 1-based physical line number within the input or file, and `reason` describes the error.
+Error messages include neither the input line nor its key or value.
+
+**API change:** `unmarshal()` now returns `!map[string]string`, `parse()` returns `!string`, and `load()` and `over_load()` return `!`.
+These functions previously returned plain values (or no value) and silently skipped malformed lines.
+`print_file()` and `print_terminal()` retain their Result signatures and now propagate parse errors too.
+Handle errors with `or { ... }` or propagate them with `!`:
+
+```v
+env_map := vdotenv.unmarshal('INVALID_LINE') or {
+    if err is vdotenv.ParseError {
+        eprintln('Invalid dotenv input on line ${err.line}')
+    }
+    return
+}
+```
+
+Parsing stops at the first malformed line and does not return a partial map or output.
+`load()` and `over_load()` apply variables only after a whole file parses successfully.
+When loading multiple files, earlier successful files remain applied; the malformed file and subsequent files are not applied.
+`print_file()` creates no output file and `print_terminal()` prints no environment values on a parse error.
+The existing missing/unreadable-file behavior is unchanged: a diagnostic is printed and that file is treated as empty.
 
 ## Installation and Import
 
