@@ -1,7 +1,7 @@
 # 区切り文字のない行を解析すると panic が発生する
 
 - Created: 2026-10-03
-- Completed: {YYYY-MM-DD}
+- Completed: 2026-10-03
 - Branch: feature/fix-malformed-line-panic
 - Polished: {YYYY-MM-DD}
 
@@ -78,3 +78,5 @@ V panic: array.get: index out of range (i,a.len):1, 1
 - 文字列、既定ファイル、明示したファイル、複数ファイルについて、区切り文字の欠落、空のキー、不正な引用値、空白とコメント、CRLF の行番号、秘密情報を含まないエラー、部分適用の防止を検証した。
   `make test`、`v fmt -verify .`、`v vet -W .`、`git diff --check` が通過した。
   外部モジュールから `ParseError` を判別できることと、解析エラー時に `print_terminal()` が環境変数の値を出力しないことも実行で確認した。
+  公開メソッド `ParseError.msg()` と `ParseError.code()` にドキュメントコメントを追加し、公式 V バイナリの `v vet -W .` が通ることを確認した。
+  PR #35 のマージ後に `main` の CI が成功し、クローズ前の `make test` も通過した。
