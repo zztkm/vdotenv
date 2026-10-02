@@ -212,16 +212,25 @@ fn parse_value(raw_value string) ?string {
 		if quote == `"` && ch == `\\` && i + 1 < value.len {
 			next := value[i + 1]
 			match next {
-				`\\`, `"` { decoded.write_u8(next) }
-				`n` { decoded.write_u8(`\n`) }
-				`r` { decoded.write_u8(`\r`) }
-				`t` { decoded.write_u8(`\t`) }
+				`\\`, `"` {
+					decoded.write_u8(next)
+				}
+				`n` {
+					decoded.write_u8(`\n`)
+				}
+				`r` {
+					decoded.write_u8(`\r`)
+				}
+				`t` {
+					decoded.write_u8(`\t`)
+				}
 				else {
 					// Preserve unknown escapes, e.g. in hand-written Windows paths.
 					decoded.write_u8(ch)
 					decoded.write_u8(next)
 				}
 			}
+
 			i += 2
 			continue
 		}

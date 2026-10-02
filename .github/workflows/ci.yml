@@ -1,17 +1,19 @@
 name: CI
 
-# Controls when the action will run.
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
   push:
     branches: [main]
   pull_request:
     branches: [main]
+    # synchronize runs CI whenever new commits are pushed to a PR branch.
+    types: [opened, synchronize, reopened]
   schedule:
     # Run the workflow every Monday at 00:00 (UTC)
     - cron: '0 0 * * 1'
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+permissions:
+  contents: read
+
 jobs:
   # This workflow contains a single job called "build"
   test:
@@ -21,12 +23,28 @@ jobs:
         os: ["ubuntu-latest", "macos-latest"]
     runs-on: ${{ matrix.os }}
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - name: Install V
-        uses: vlang/setup-v@v1.3
-        with:
-          check-latest: true
+      - name: Install V from official release
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${RUNNER_OS}:${RUNNER_ARCH}" in
+            Linux:X64) asset=v_linux.zip ;;
+            Linux:ARM64) asset=v_linux_arm64.zip ;;
+            macOS:X64) asset=v_macos_x86_64.zip ;;
+            macOS:ARM64) asset=v_macos_arm64.zip ;;
+            *) echo "Unsupported runner: ${RUNNER_OS}:${RUNNER_ARCH}" >&2; exit 1 ;;
+          esac
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://github.com/vlang/v/releases/latest/download/${asset}" \
+            --output "${RUNNER_TEMP}/v.zip"
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            ditto -x -k "${RUNNER_TEMP}/v.zip" "${RUNNER_TEMP}/vlang"
+          else
+            unzip -q "${RUNNER_TEMP}/v.zip" -d "${RUNNER_TEMP}/vlang"
+          fi
+          echo "${RUNNER_TEMP}/vlang/v" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/vlang/v/v" version
 
       - uses: actions/checkout@v4
 
