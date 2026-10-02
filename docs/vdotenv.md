@@ -104,6 +104,8 @@ ParseError identifies a malformed dotenv line without exposing its key or value.
 fn (err ParseError) msg() string
 ```
 
+msg returns the line number and reason without exposing input keys or values.
+
 [[Return to contents]](#Contents)
 
 ## code
@@ -111,6 +113,8 @@ fn (err ParseError) msg() string
 fn (err ParseError) code() int
 ```
 
+code returns the default error code (0) required by IError.
+
 [[Return to contents]](#Contents)
 
-#### Powered by vdoc. Generated on: 3 Oct 2026 04:37:52
+#### Powered by vdoc. Generated on: 3 Oct 2026 05:01:57

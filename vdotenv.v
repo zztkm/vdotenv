@@ -12,10 +12,12 @@ pub:
 	reason string
 }
 
+// msg returns the line number and reason without exposing input keys or values.
 pub fn (err ParseError) msg() string {
 	return 'dotenv parse error on line ${err.line}: ${err.reason}'
 }
 
+// code returns the default error code (0) required by IError.
 pub fn (err ParseError) code() int {
 	return 0
 }
@@ -247,16 +249,25 @@ fn parse_value(raw_value string) ?string {
 		if quote == `"` && ch == `\\` && i + 1 < value.len {
 			next := value[i + 1]
 			match next {
-				`\\`, `"` { decoded.write_u8(next) }
-				`n` { decoded.write_u8(`\n`) }
-				`r` { decoded.write_u8(`\r`) }
-				`t` { decoded.write_u8(`\t`) }
+				`\\`, `"` {
+					decoded.write_u8(next)
+				}
+				`n` {
+					decoded.write_u8(`\n`)
+				}
+				`r` {
+					decoded.write_u8(`\r`)
+				}
+				`t` {
+					decoded.write_u8(`\t`)
+				}
 				else {
 					// Preserve unknown escapes, e.g. in hand-written Windows paths.
 					decoded.write_u8(ch)
 					decoded.write_u8(next)
 				}
 			}
+
 			i += 2
 			continue
 		}
@@ -267,7 +278,7 @@ fn parse_value(raw_value string) ?string {
 }
 
 fn valid_env_key(key string) bool {
-	if key.len == 0 {
+	if key == '' {
 		return false
 	}
 	for i, ch in key.bytes() {
