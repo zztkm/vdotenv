@@ -4,6 +4,26 @@ import json
 import os
 import rand
 
+const suite_original_directory = os.getwd()
+const suite_directory = os.join_path(os.temp_dir(), 'vdotenv-suite-${rand.ulid()}')
+
+fn testsuite_begin() {
+	os.mkdir(suite_directory) or { panic(err) }
+	for filename in ['.env', '.env.parse'] {
+		os.cp(os.join_path(@VMODROOT, 'testdata', filename),
+			os.join_path(suite_directory, filename)) or { panic(err) }
+	}
+	os.chdir(suite_directory) or { panic(err) }
+	for key in ['TEST', 'TEST1', 'TEST2', 'TEST3', 'TEST4', 'TEST5', 'TEST6', 'TEST7'] {
+		os.unsetenv(key)
+	}
+}
+
+fn testsuite_end() {
+	os.chdir(suite_original_directory) or { panic(err) }
+	os.rmdir_all(suite_directory) or { panic(err) }
+}
+
 /*
 Sample .env file for tests:
 .env
@@ -761,6 +781,161 @@ fn test_file_apis_ignore_initial_utf8_bom() {
 		assert os.getenv(key) == 'value'
 		assert '\xef\xbb\xbf' + key !in os.environ()
 	}
+}
+
+fn test_unmarshal_preserves_nul_but_json_parsing_rejects_it() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'nul.env')
+	contents := 'KEY\x00SUFFIX="before\x00after"\n'
+	expected := {
+		'KEY\x00SUFFIX': 'before\x00after'
+	}
+	assert unmarshal(contents)! == expected
+	os.write_file(filename, contents)!
+	for include_names in [false, true] {
+		mut rejected := false
+		parse(include_names, filename) or {
+			rejected = true
+			assert_test_parse_error(err, 1)
+		}
+		assert rejected
+	}
+	assert unmarshal(marshal({
+		'VALUE': '\x00'
+	})!)! == {
+		'VALUE': '\x00'
+	}
+}
+
+fn test_default_load_rejects_nul_even_in_shadowed_or_existing_values() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	key := 'VDOTENV_NUL_DEFAULT'
+	previous_env := os.environ()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+		restore_test_environment(previous_env, [key])
+	}
+	os.chdir(directory)!
+	os.setenv(key, '', true)
+	for value in ['\x00SECRET', 'SECRET\x00', '\x00'] {
+		os.write_file('.env', '${key}="${value}"\n${key}=valid\n')!
+		for overwrite in [false, true] {
+			mut rejected := false
+			if overwrite {
+				over_load() or {
+					rejected = true
+					assert_test_parse_error(err, 1)
+				}
+			} else {
+				load() or {
+					rejected = true
+					assert_test_parse_error(err, 1)
+				}
+			}
+			assert rejected
+			assert os.getenv_opt(key)? == ''
+		}
+	}
+}
+
+fn test_file_apis_read_spaced_filename_without_trimmed_counterpart() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	key := 'VDOTENV_FILENAME_VALUE'
+	previous_env := os.environ()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+		restore_test_environment(previous_env, [key])
+	}
+	os.chdir(directory)!
+	for filename in [' only.env', 'only.env ', ' only.env '] {
+		os.write_file(filename, '${key}=requested\n')!
+		assert decode_test_parse_output(parse(false, filename)!, []) == {
+			key: 'requested'
+		}
+		os.unsetenv(key)
+		load(filename)!
+		assert os.getenv(key) == 'requested'
+		os.setenv(key, 'existing', true)
+		over_load(filename)!
+		assert os.getenv(key) == 'requested'
+	}
+}
+
+fn test_bom_preserves_noninitial_characters_and_error_lines() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'bom.env')
+	bom := '\xef\xbb\xbf'
+	for contents in ['TOKEN="${bom}value${bom}"\n${bom}KEY=value\n', '\n${bom}KEY=value\n'] {
+		expected := unmarshal(contents)!
+		os.write_file(filename, bom + contents)!
+		assert unmarshal(bom + contents)! == expected
+		assert decode_test_parse_output(parse(false, filename)!, []) == expected
+	}
+	assert unmarshal(bom + bom + 'KEY=value\n')! == {
+		'${bom}KEY': 'value'
+	}
+	for contents in ['# comment\nINVALID_LINE_SECRET\n', '# comment\r\nINVALID_LINE_SECRET\r\n',
+		'\nTOKEN="SECRET_VALUE\n'] {
+		os.write_file(filename, bom + contents)!
+		mut string_rejected := false
+		unmarshal(bom + contents) or {
+			string_rejected = true
+			assert_test_parse_error(err, 2)
+		}
+		assert string_rejected
+		mut file_rejected := false
+		parse(false, filename) or {
+			file_rejected = true
+			assert_test_parse_error(err, 2)
+		}
+		assert file_rejected
+		mut load_rejected := false
+		load(filename) or {
+			load_rejected = true
+			assert_test_parse_error(err, 2)
+		}
+		assert load_rejected
+		mut overload_rejected := false
+		over_load(filename) or {
+			overload_rejected = true
+			assert_test_parse_error(err, 2)
+		}
+		assert overload_rejected
+	}
+	os.write_file(filename, bom)!
+	assert decode_test_parse_output(parse(false, filename)!, []) == map[string]string{}
+	before := os.environ()
+	load(filename)!
+	over_load(filename)!
+	assert os.environ() == before
+}
+
+fn test_terminal_formatter_renders_nul_visibly() {
+	assert format_terminal_env_map({
+		'VALUE': '\x00'
+	})! == 'VALUE="\\x00"\n'
+}
+
+fn test_marshal_round_trips_terminal_controls() {
+	mut value := ''
+	for ch in 0 .. 0xa0 {
+		value += rune(ch).str()
+	}
+	value += '日本語 😀'
+	expected := {
+		'VALUE': value
+	}
+	assert unmarshal(marshal(expected)!)! == expected
 }
 
 fn test_parse_multifiles() {

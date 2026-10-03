@@ -40,8 +40,14 @@ Create a new topic branch to contain your feature, change, or fix:
 Development workflow:
 1. Add features or fix bugs, etc.
 2. Create tests for your work.
-3. Run the test.
-	- `make test`
+3. Use the official V release and Python 3 to run all tests and checks.
+	- `make test test-integration`
+	- `v fmt -verify .`
+	- `v vet -W .`
+
+Tests use private temporary directories and clean them up on assertion success or failure.
+Neither the tests nor `make clean` overwrite or remove local `.env` or `.env.parse` files.
+Run `v test vdotenv_test.v` directly when only the V suite is needed; no fixture-copying step is required.
 
 Locally merge (or rebase) the upstream development branch into your topic branch:
 

@@ -21,9 +21,10 @@ class TerminalOutputTests(unittest.TestCase):
             cwd=ROOT, check=True, capture_output=True,
         )
 
-    def capture(self, value):
+    def capture(self, value, contents=None):
         with tempfile.TemporaryDirectory() as directory:
-            Path(directory, ".env").write_text(f"{KEY}=placeholder\n")
+            Path(directory, ".env").write_text(
+                contents if contents is not None else f"{KEY}=placeholder\n")
             env = os.environ.copy()
             env[KEY] = value
             return subprocess.run([self.program], cwd=directory, env=env,
@@ -49,6 +50,32 @@ class TerminalOutputTests(unittest.TestCase):
         self.assertIn(b"\\x7f", result.stdout)
         self.assertIn(b"\\u009b", result.stdout)
         self.assertIn("日本語 😀".encode(), result.stdout)
+
+    def test_normal_values_and_bom_input(self):
+        value = 'plain 日本語 😀 "quoted" \\ path\n\r\t'
+        expected = f'{KEY}="plain 日本語 😀 \\"quoted\\" \\\\ path\\n\\r\\t"\n\n'.encode()
+        for prefix in ["", "\ufeff", "\ufeff# comment\n", "\ufeff\n"]:
+            with self.subTest(prefix=prefix):
+                result = self.capture(value, f"{prefix}{KEY}=placeholder\n")
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, expected)
+
+    def test_invalid_input_prints_no_values(self):
+        for contents in [f"{KEY}=placeholder\nINVALID_LINE_SECRET\n",
+                         f"{KEY}=placeholder\nBAD-KEY=value\n"]:
+            with self.subTest(contents=contents):
+                result = self.capture("ENVIRONMENT_SECRET", contents)
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, b"")
+                self.assertNotIn(b"ENVIRONMENT_SECRET", result.stderr)
+                self.assertNotIn(b"INVALID_LINE_SECRET", result.stderr)
+
+    def test_invalid_utf8_c1_bytes_do_not_reach_stdout(self):
+        result = self.capture(os.fsdecode(b"\x9b2J\x9dspoofed\x9c"))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("\ufffd".encode(), result.stdout)
+        for control in [b"\x9b", b"\x9d", b"\x9c"]:
+            self.assertNotIn(control, result.stdout)
 
 
 if __name__ == "__main__":

@@ -6,9 +6,12 @@ doc:
 ## Run test
 .PHONY: test
 test:
-	cp testdata/.env testdata/.env.parse .
 	v test vdotenv_test.v
-	rm .env .env.parse
+
+## Run command and stdout integration tests (requires Python 3)
+.PHONY: test-integration
+test-integration:
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
 
 ## Report suspicious code constructs.
 .PHONY: vet
@@ -20,7 +23,7 @@ vet:
 fmt:
 	v fmt -w .
 
-## Clean repository
+## Tests clean their own temporary directories; never delete user configuration.
 .PHONY: clean
 clean:
-	rm .env .env.parse
+	@:

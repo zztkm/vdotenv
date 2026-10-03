@@ -32,6 +32,20 @@ class SetenvFailureTests(unittest.TestCase):
                 self.assertNotIn(b"SECRET_VALUE", result.stderr)
                 self.assertNotIn(b"VDOTENV_FORCE_FAILURE", result.stderr)
 
+    def test_load_preserves_existing_values_including_empty(self):
+        for value in ["existing", ""]:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                Path(directory, ".env").write_text("VDOTENV_FORCE_FAILURE=SECRET_VALUE\n")
+                env = os.environ.copy()
+                env["VDOTENV_FORCE_FAILURE"] = value
+                result = subprocess.run([self.program, "load"], cwd=directory, env=env,
+                                        capture_output=True)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, (value + "\n").encode())
+                result = subprocess.run([self.program, "overwrite"], cwd=directory, env=env,
+                                        capture_output=True)
+                self.assertEqual(result.returncode, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,4 +16,5 @@ fn main() {
 			exit(1)
 		}
 	}
+	println(os.getenv('VDOTENV_FORCE_FAILURE'))
 }

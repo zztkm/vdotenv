@@ -75,6 +75,39 @@ Only the first `=` separates a key from its value, and `#` starts a comment only
 Physical multiline quoted values and variable interpolation are not supported; write multiline values using escaped `\n` or `\r`.
 The output is intended for dotenv readers, not for execution as a shell script.
 
+## Input paths, UTF-8 BOM and NUL
+
+File paths are used exactly as supplied, including leading or trailing whitespace; paths are not trimmed.
+The default remains `.env` in the current directory.
+
+All readers ignore one UTF-8 BOM (`EF BB BF`) only at the start of each input string or file.
+A first assignment, comment, blank line or BOM-only input is handled like the corresponding BOM-free input.
+The same character inside a value or later key is preserved, and physical error line numbers do not change.
+
+`load()`, `over_load()` and `parse()` reject NUL (`0x00`) in any parsed key or value with `ParseError`.
+This prevents the OS or JSON encoder from silently truncating names or values.
+Every assignment is checked, including overwritten duplicate keys and values that `load()` would otherwise keep unchanged.
+A validation error applies none of that file's variables.
+`unmarshal()` preserves NUL for in-memory use and `marshal()` preserves NUL values; do not pass these strings directly to OS setters.
+Remove NUL from configuration intended for environment loading or JSON output.
+
+`load()` keeps existing environment variables, including empty values.
+OS setter failures now return an error without exposing the key or value; propagate it with `!` or handle it with `or { ... }`.
+An OS failure stops further assignments but does not roll back variables already set, unlike input validation which happens before application.
+
+## Terminal display
+
+`print_terminal()` reads the keys from `.env` and displays their current process environment values.
+It retains `KEY="VALUE"` lines and the usual backslash, quote, LF, CR and tab escapes.
+Other C0 controls (`U+0000`–`U+001F`) and DEL (`U+007F`) are shown as `\xNN`, including ESC as `\x1b`.
+Unicode C1 controls (`U+0080`–`U+009F`) are shown as `\u00NN`; invalid UTF-8 becomes replacement characters.
+Ordinary Unicode text is preserved.
+No environment values are printed if parsing or key validation fails.
+
+**Display compatibility:** this is visible diagnostic text, not a lossless dotenv serialization format.
+Code saving or decoding terminal output should instead use `marshal()` on the values to preserve them.
+`marshal()` and `unmarshal()` retain their existing control-character round trips.
+
 ## JSON output and filename comments
 
 `parse(false, filenames...)` returns a flat JSON object without modifying the process environment.
@@ -88,7 +121,7 @@ output := vdotenv.parse(false, '.env') or { panic(err) }
 env_map := json.decode(map[string]string, output) or { panic(err) }
 ```
 
-Input keys retain the existing permissive rules: the text before the first `=` is trimmed and must be nonempty.
+Except for NUL rejection by `parse()`, input keys retain the permissive rules: the text before the first `=` is trimmed and must be nonempty.
 Quotes, backslashes, internal tabs, punctuation and Unicode in keys are literal characters, not JSON syntax.
 Blank lines and comment lines are ignored; physical CR/LF characters delimit lines and cannot occur within a key.
 This is broader than the portable key restriction imposed by `marshal()`; use portable keys when serializing back to dotenv.
@@ -195,6 +228,10 @@ import vdotenv
 ## Contributing
 
 [Contributing Guide for this repository.](docs/CONTRIBUTING.md)
+
+Use the official V release and Python 3, then run `make test test-integration`, `v fmt -verify .` and `v vet -W .`.
+The V suite uses a private temporary directory and removes it after successful or failed assertions.
+Tests and `make clean` never overwrite or delete the working directory's `.env` or `.env.parse`.
 
 ## License
 

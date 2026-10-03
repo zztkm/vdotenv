@@ -64,6 +64,38 @@ class MakeSafetyTests(unittest.TestCase):
         self.assertEqual(self.run_make("clean").returncode, 0)
         self.assertEqual(self.snapshot(), before)
 
+    def test_absent_local_files_remain_absent_on_success_and_failure(self):
+        for failure in [False, True]:
+            with self.subTest(failure=failure):
+                result = self.run_make("test", failure=failure)
+                self.assertEqual(result.returncode == 0, not failure)
+                self.assertEqual(self.snapshot(), {})
+
+    def test_real_v_run_preserves_files_and_cleans_suite_on_failure(self):
+        before = self.create_local_files()
+        real_env = os.environ.copy()
+        # Force the private suite directory into this disposable copy for inspection.
+        # This replaces only test code, not the library under test.
+        tests = self.root / "vdotenv_test.v"
+        original = tests.read_text()
+        self.assertEqual(original.count(
+            "os.join_path(os.temp_dir(), 'vdotenv-suite-${rand.ulid()}')"), 1)
+        source = original.replace(
+            "os.join_path(os.temp_dir(), 'vdotenv-suite-${rand.ulid()}')",
+            "os.join_path(@VMODROOT, 'private-suite')")
+        tests.write_text(source)
+        for failure in [False, True]:
+            with self.subTest(failure=failure):
+                if failure:
+                    tests.write_text(source + '\nfn test_forced_failure() {\n\tassert false\n}\n')
+                result = subprocess.run(["make", "test"], cwd=self.root, env=real_env,
+                                        capture_output=True)
+                self.assertEqual(result.returncode == 0, not failure, result.stderr.decode())
+                if failure:
+                    self.assertIn(b"test_forced_failure", result.stdout + result.stderr)
+                self.assertEqual(self.snapshot(), before)
+                self.assertFalse((self.root / "private-suite").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
