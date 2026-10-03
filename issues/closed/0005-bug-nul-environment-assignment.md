@@ -1,7 +1,7 @@
 # NUL 文字を含む入力で別名の環境変数を設定し、値を切り詰める
 
 - Created: 2026-10-03
-- Completed: {YYYY-MM-DD}
+- Completed: 2026-10-03
 - Branch: feature/fix-nul-environment-assignment
 - Polished: {YYYY-MM-DD}
 
@@ -81,9 +81,18 @@ fn test_nul_environment_assignment() {
 
 ## 完了条件
 
-- [ ] キーの先頭・途中・末尾に NUL がある入力を、別名の環境変数を設定せず拒否できる。
-- [ ] NUL を含む値を黙って切り詰めず、呼び出し元がエラーを判別できる。
-- [ ] 同じファイルに正常な行と NUL を含む行が混在しても、検証エラー時に環境変数を部分適用しない。
-- [ ] OS の設定失敗を通知し、既存値を保持する `load()` の正常動作は維持する。
-- [ ] `load()` と `over_load()` の回帰テストがあり、エラーに入力の実値が含まれない。
-- [ ] 入力仕様を変更する場合、README、API ドキュメント、CHANGELOG に反映する。
+- [x] キーの先頭・途中・末尾に NUL がある入力を、別名の環境変数を設定せず拒否できる。
+- [x] NUL を含む値を黙って切り詰めず、呼び出し元がエラーを判別できる。
+- [x] 同じファイルに正常な行と NUL を含む行が混在しても、検証エラー時に環境変数を部分適用しない。
+- [x] OS の設定失敗を通知し、既存値を保持する `load()` の正常動作は維持する。
+- [x] `load()` と `over_load()` の回帰テストがあり、エラーに入力の実値が含まれない。
+- [x] 入力仕様を変更する場合、README、API ドキュメント、CHANGELOG に反映する。
+
+## 解決方法
+
+- `parse_lines()` で全代入行のキーと値を検証し、`load()`、`over_load()`、`parse()` は NUL を安全な `ParseError` として拒否する。
+  `load_env_map()` は OS の設定失敗を通知し、空の値を含む既存変数は `load()` で保持する。
+- `unmarshal()` と `marshal()` はメモリ内の往復変換を維持する。
+  JSON エンコーダーも NUL で切り詰めるため `parse()` は拒否する方針とし、README、API ドキュメント、CHANGELOG に記載した。
+- 公式 V 0.5.2（7647ce1）の macOS と Ubuntu 24.04（arm64）で `make test test-integration`、`v fmt -verify .`、`v vet -W .` が成功した。
+  NUL の位置、正常行との混在、重複キー、既存値、テスト用 setter の失敗、エラーに入力値を含めないことを確認した。

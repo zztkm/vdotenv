@@ -24,7 +24,9 @@ pub fn (err ParseError) code() int {
 
 // load create environment variables from the values in specified files; default to .env
 // [note: Does not overwrite env variables that already exist.]
-// Returns ParseError before setting any variables from a malformed file.
+// Paths are used verbatim; one initial UTF-8 BOM is ignored.
+// Returns ParseError before setting any variables from a malformed file or NUL key/value.
+// OS setter failures return a safe error; variables already set are not rolled back.
 pub fn load(filenames ...string) ! {
 	if filenames.len > 0 {
 		for filename in filenames {
@@ -37,7 +39,9 @@ pub fn load(filenames ...string) ! {
 
 // over_load create environment variables from specified files; default to .env
 // [note: Overwrites env variables that already exist.] 環境変数を上書きする.
-// Returns ParseError before setting any variables from a malformed file.
+// Paths are used verbatim; one initial UTF-8 BOM is ignored.
+// Returns ParseError before setting any variables from a malformed file or NUL key/value.
+// OS setter failures return a safe error; variables already set are not rolled back.
 pub fn over_load(filenames ...string) ! {
 	if filenames.len > 0 {
 		for filename in filenames {
@@ -61,7 +65,9 @@ pub fn marshal(env_map map[string]string) !string {
 // Hashes inside quotes and equals signs in values are preserved.
 // Keys are the nonempty, whitespace-trimmed text before the first =; punctuation is literal.
 // Physical CR/LF delimit lines and cannot occur inside keys.
-// Blank lines and indented comments are ignored. Malformed lines return ParseError.
+// One initial UTF-8 BOM, blank lines and indented comments are ignored.
+// Malformed lines return ParseError. NUL is preserved for in-memory serialization;
+// load, over_load and parse reject NUL keys/values before calling OS or JSON APIs.
 pub fn unmarshal(str string) !map[string]string {
 	return parse_contents(str)
 }
@@ -69,7 +75,10 @@ pub fn unmarshal(str string) !map[string]string {
 // print_terminal prints the values set in .env file to the terminal
 // .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
 // Returns ParseError for malformed input, or an error if a key cannot be serialized.
-// No environment values are printed on error.
+// One initial UTF-8 BOM is ignored. No environment values are printed on error.
+// In addition to dotenv escapes, C0 controls and DEL use visible \xNN notation,
+// and Unicode C1 controls use \u00NN. Invalid UTF-8 becomes replacement characters.
+// This is display-only text; use marshal for lossless serialization.
 pub fn print_terminal() ! {
 	filename := '.env'
 	contents := read_file(filename)
@@ -78,14 +87,15 @@ pub fn print_terminal() ! {
 	}
 	file_env_map := parse_contents(contents)!
 	os_env_map := read_env_var(file_env_map.keys())
-	println(format_env_map(os_env_map)!)
+	println(format_terminal_env_map(os_env_map)!)
 }
 
 // parse returns a flat object of JSON-encoded keys and values without modifying environment.
 // With include_names=false the output is strict JSON. With include_names=true it is
 // JSON with /* file: NAME */ comments; NAME is JSON string contents with / escaped as \u002f.
 // Empty files add no commas. Duplicate keys across files remain in file order.
-// Returns ParseError for malformed input instead of returning partial output.
+// Paths are used verbatim; one initial UTF-8 BOM is ignored in each file.
+// Returns ParseError for malformed input or NUL keys/values, without partial output.
 pub fn parse(include_names bool, filenames ...string) !string {
 	files := parse_files(filenames)!
 	mut output_builder := strings.new_builder(100)
@@ -115,17 +125,22 @@ pub fn parse(include_names bool, filenames ...string) !string {
 }
 
 // load_env_map sets/overwrites enviroments variables with values from env_map
-fn load_env_map(env_map map[string]string, over_load bool) {
-	for env in env_map.keys() {
-		key := env
-		value := env_map[key]
-		os.setenv(key, value, over_load)
+fn load_env_map(env_map map[string]string, over_load bool) ! {
+	for key, value in env_map {
+		if !over_load {
+			if _ := os.getenv_opt(key) {
+				continue
+			}
+		}
+		if os.setenv(key, value, over_load) != 0 {
+			return error('failed to set environment variable')
+		}
 	}
 }
 
 // read_file read file contents into a string fileを読み込む
 fn read_file(filename string) string {
-	contents := os.read_file(filename.trim_space()) or {
+	contents := os.read_file(filename) or {
 		println('Failed to open ${filename}')
 		return ''
 	}
@@ -148,12 +163,12 @@ fn parse_files(filenames []string) !map[string]map[string]string {
 	if filenames.len > 0 {
 		for filename in filenames {
 			contents := read_file(filename)
-			variables := parse_contents(contents)!
+			variables := parse_lines(dotenv_lines(contents), true)!
 			files[filename] = variables.clone()
 		}
 	} else {
 		contents := read_file('.env')
-		variables := parse_contents(contents)!
+		variables := parse_lines(dotenv_lines(contents), true)!
 		files['.env'] = variables.clone()
 	}
 	return files
@@ -162,13 +177,20 @@ fn parse_files(filenames []string) !map[string]map[string]string {
 // parse_contents parses the contents of a file's contents and returns a map of environment variable
 // .envファイルから読み込んだcontentsをkeys and values で返却する．
 fn parse_contents(contents string) !map[string]string {
-	lines := contents.split_into_lines()
-	return parse_lines(lines)
+	return parse_lines(dotenv_lines(contents), false)
+}
+
+// dotenv_lines removes only one BOM at the start, without changing physical line numbers.
+fn dotenv_lines(contents string) []string {
+	if contents.starts_with('\xef\xbb\xbf') {
+		return contents[3..].split_into_lines()
+	}
+	return contents.split_into_lines()
 }
 
 // parse_lines return a map of environment variables by parsing the lines of a file
 // env file から読み込んだ各行を keys and values で返却する.
-fn parse_lines(lines []string) !map[string]string {
+fn parse_lines(lines []string, reject_nul bool) !map[string]string {
 	mut env_map := map[string]string{}
 	for index, raw_line in lines {
 		line := raw_line.trim_space()
@@ -192,6 +214,12 @@ fn parse_lines(lines []string) !map[string]string {
 			return ParseError{
 				line:   index + 1
 				reason: 'invalid quoted value'
+			}
+		}
+		if reject_nul && (key.contains('\x00') || value.contains('\x00')) {
+			return ParseError{
+				line:   index + 1
+				reason: 'NUL in key or value'
 			}
 		}
 		env_map[key] = value
@@ -281,12 +309,29 @@ fn format_env_map(env_map map[string]string) !string {
 	return output.str()
 }
 
+// format_terminal_env_map escapes additional controls only after dotenv serialization.
+// Structural newlines and the serializer's existing escapes are preserved.
+fn format_terminal_env_map(env_map map[string]string) !string {
+	serialized := format_env_map(env_map)!
+	mut output := strings.new_builder(serialized.len)
+	for ch in serialized.runes() {
+		if (ch < 0x20 && ch != `\n`) || ch == 0x7f {
+			output.write_string('\\x${int(ch):02x}')
+		} else if ch >= 0x80 && ch <= 0x9f {
+			output.write_string('\\u${int(ch):04x}')
+		} else {
+			output.write_string(ch.str())
+		}
+	}
+	return output.str()
+}
+
 // load_env parse the contents of the specified file to set/overload an environment variable
 fn load_env(filename string, overload_env bool) ! {
 	contents := read_file(filename)
 	if contents == '' {
 		return
 	}
-	env_map := parse_contents(contents)!
-	load_env_map(env_map, overload_env)
+	env_map := parse_lines(dotenv_lines(contents), true)!
+	load_env_map(env_map, overload_env)!
 }
