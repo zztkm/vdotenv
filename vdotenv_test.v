@@ -1,5 +1,6 @@
 module vdotenv
 
+import json
 import os
 import rand
 
@@ -65,6 +66,138 @@ fn test_quoted_hash() {
 fn test_parse() {
 	// test that returning a hash of env vars parsed from the default '.env' file
 	assert parse(true)! == '{ /* file: .env */ "TEST" : "OVERLOADENV", "TEST1" : "LOADENV", "TEST2" : "LOADENV", "TEST4" : "NOHASH", "TEST5" : "NOHASH", "TEST7" : "HASH #ENV" }'
+}
+
+fn test_parse_json_prevents_key_injection() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'injection.env')
+	key := 'A" : "safe", "ROLE'
+	os.write_file(filename, '${key}=admin\n')!
+	output := parse(false, filename)!
+	decoded := json.decode(map[string]string, output) or {
+		assert false, 'Expected valid JSON: ${output}'
+		return
+	}
+	assert 'ROLE' !in decoded
+	assert decoded == {
+		key: 'admin'
+	}
+}
+
+fn test_parse_json_round_trips_special_keys() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'keys.env')
+	for key in ['A"KEY', 'A\\KEY', 'A\tKEY'] {
+		os.write_file(filename, '${key}=value\n')!
+		output := parse(false, filename)!
+		assert output.contains(json.encode(key)), 'Expected a JSON-escaped key: ${output}'
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON: ${output}'
+			return
+		}
+		assert decoded == {
+			key: 'value'
+		}
+	}
+}
+
+fn test_parse_json_round_trips_backslashes() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'values.env')
+	for value in ['literal \\n', 'C:\\path\\file', 'trailing\\', '\\"quoted"'] {
+		env_map := {
+			'VALUE': value
+		}
+		os.write_file(filename, marshal(env_map)!)!
+		output := parse(false, filename)!
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON: ${output}'
+			return
+		}
+		assert decoded == env_map
+		assert output.contains(json.encode(value))
+	}
+}
+
+fn test_parse_json_escapes_control_values() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'controls.env')
+	for value in ['tab\there', 'line\nbreak', 'carriage\rreturn', '\x01\x08\x0c\x1f'] {
+		env_map := {
+			'VALUE': value
+		}
+		os.write_file(filename, marshal(env_map)!)!
+		output := parse(false, filename)!
+		assert output.contains(json.encode(value)), 'Expected a JSON-escaped value: ${output}'
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON: ${output}'
+			return
+		}
+		assert decoded == env_map
+	}
+}
+
+fn test_parse_names_escape_comment_delimiters() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'break*', 'quoted"\\\n\t.env')
+	os.mkdir_all(os.dir(filename))!
+	os.write_file(filename, 'VALUE=safe\n')!
+	output := parse(true, filename)!
+	comment_start := output.index('/* file: ') or { panic('Expected a file comment') }
+	comment_end := output.index(' */') or { panic('Expected a closed file comment') }
+	label := output[comment_start + '/* file: '.len..comment_end]
+	assert !label.contains('*/'), 'Filename must not terminate the comment'
+	assert !label.contains('\n') && !label.contains('\t')
+	// Labels are JSON string contents, with slashes escaped to protect comment delimiters.
+	decoded_name := json.decode(map[string]string, '{"filename":"${label}"}') or {
+		assert false, 'Expected a JSON-escaped filename label'
+		return
+	}
+	assert decoded_name['filename'] == filename
+	json_output := output[..comment_start] + output[comment_end + ' */'.len..]
+	decoded := json.decode(map[string]string, json_output) or {
+		assert false, 'Expected valid JSON after removing the file comment: ${json_output}'
+		return
+	}
+	assert decoded == {
+		'VALUE': 'safe'
+	}
+}
+
+fn test_parse_json_empty_files_do_not_add_commas() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	empty := os.join_path(directory, 'empty.env')
+	full := os.join_path(directory, 'full.env')
+	os.write_file(empty, ' # comment\n')!
+	os.write_file(full, 'VALUE=safe\n')!
+	for filenames in [[empty, full], [full, empty], [empty, full, empty]] {
+		output := parse(false, ...filenames)!
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON with empty files: ${output}'
+			return
+		}
+		assert decoded == {
+			'VALUE': 'safe'
+		}
+	}
 }
 
 fn test_marshal_prevents_variable_injection() {
