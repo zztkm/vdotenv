@@ -1,7 +1,6 @@
 module vdotenv
 
 import os
-import time
 import strings
 
 // ParseError identifies a malformed dotenv line without exposing its key or value.
@@ -64,13 +63,6 @@ pub fn unmarshal(str string) !map[string]string {
 	return parse_contents(str)
 }
 
-// write serializes the given environment and writes it to a file.
-// Invalid keys return an error without creating or overwriting the file.
-pub fn write(env_map map[string]string, filename string) ! {
-	contents := format_env_map(env_map)!
-	os.write_file(filename, contents)!
-}
-
 // print_terminal prints the values set in .env file to the terminal
 // .envファイルに記載されている環境変数に関して現在の設定状況をターミナルに表示する．
 // Returns ParseError for malformed input, or an error if a key cannot be serialized.
@@ -84,22 +76,6 @@ pub fn print_terminal() ! {
 	file_env_map := parse_contents(contents)!
 	os_env_map := read_env_var(file_env_map.keys())
 	println(format_env_map(os_env_map)!)
-}
-
-// print_file writes the values set in .env file to a file
-// Returns ParseError for malformed input, or an error if a key cannot be serialized,
-// without creating an output file.
-// .envファイルに記載されている環境変数に関して，現在の設定状況をファイルに書き出す．
-pub fn print_file() ! {
-	filename := '.env'
-	contents := read_file(filename)
-	if contents == '' {
-		return
-	}
-	file_env_map := parse_contents(contents)!
-	os_env_map := read_env_var(file_env_map.keys())
-	contents_to_write := format_env_map(os_env_map)!
-	write_file(filename, contents_to_write)!
 }
 
 // parse writes contents of files into a format easily parsed by other systems without modifying environment
@@ -150,12 +126,6 @@ fn read_file(filename string) string {
 		return ''
 	}
 	return contents
-}
-
-// write_file write contents to timestamped file fileに書き出す
-fn write_file(filename string, contents string) ! {
-	write_filename := './${filename.trim_space()} ${time.now()}'
-	os.write_file(write_filename, contents)!
 }
 
 // read_env_var match the specified keys to their values and return the resulting map

@@ -3,11 +3,6 @@ module vdotenv
 import os
 import rand
 
-$if !windows {
-	#include <sys/stat.h>
-	fn C.umask(u32) u32
-}
-
 /*
 Sample .env file for tests:
 .env
@@ -117,7 +112,7 @@ fn test_marshal_round_trips_escape_combinations() {
 	}
 }
 
-fn test_write_and_load_prevent_variable_injection() {
+fn test_marshal_and_load_prevent_variable_injection() {
 	directory := new_test_directory()!
 	defer {
 		os.rmdir_all(directory) or { panic(err) }
@@ -134,7 +129,7 @@ fn test_write_and_load_prevent_variable_injection() {
 		'USER_INPUT': 'hello\nVDOTENV_PROBE_ADMIN=enabled'
 	}
 	filename := os.join_path(directory, 'injection.env')
-	write(env_map, filename)!
+	os.write_file(filename, marshal(env_map)!)!
 	load(filename)!
 	assert 'VDOTENV_PROBE_ADMIN' !in os.environ()
 	assert os.getenv('USER_INPUT') == env_map['USER_INPUT']
@@ -146,138 +141,15 @@ fn test_write_and_load_prevent_variable_injection() {
 	assert 'VDOTENV_PROBE_ADMIN' !in os.environ()
 }
 
-fn test_write_rejects_invalid_keys_without_changing_file() {
-	directory := new_test_directory()!
-	defer {
-		os.rmdir_all(directory) or { panic(err) }
-	}
-	filename := os.join_path(directory, 'existing.env')
+fn test_marshal_rejects_invalid_keys() {
 	invalid_keys := ['', 'BAD\nINJECTED', 'BAD\rINJECTED', 'BAD=KEY', ' BAD', 'BAD ', 'BAD-KEY',
 		'BAD.KEY', '1BAD', '#BAD', 'BAD"KEY', 'BAD\x00KEY', '日本語']
 	for key in invalid_keys {
-		os.write_file(filename, 'ORIGINAL=value\n')!
-		mut marshal_rejected := false
+		mut rejected := false
 		marshal({
 			key: 'value'
-		}) or { marshal_rejected = true }
-		assert marshal_rejected, 'Expected marshal to reject invalid key'
-		mut rejected := false
-		write({
-			key: 'value'
-		}, filename) or { rejected = true }
-		assert rejected, 'Expected invalid key to be rejected'
-		assert os.read_file(filename)! == 'ORIGINAL=value\n'
-		new_filename := os.join_path(directory, 'new.env')
-		mut new_file_rejected := false
-		write({
-			key: 'value'
-		}, new_filename) or { new_file_rejected = true }
-		assert new_file_rejected
-		assert !os.exists(new_filename)
-	}
-}
-
-fn test_write_creates_private_file_with_umask_022() {
-	assert_write_creates_private_file(0o022)!
-}
-
-fn test_write_creates_private_file_with_umask_000() {
-	assert_write_creates_private_file(0o000)!
-}
-
-fn assert_write_creates_private_file(mask u32) ! {
-	$if !windows {
-		directory := new_test_directory()!
-		previous_mask := C.umask(mask)
-		defer {
-			C.umask(previous_mask)
-			os.rmdir_all(directory) or { panic(err) }
-		}
-		filename := os.join_path(directory, 'secret.env')
-		env_map := {
-			'SECRET': 'dummy-secret'
-		}
-		write(env_map, filename)!
-		assert os.stat(filename)!.mode & 0o7777 == 0o600
-		assert unmarshal(os.read_file(filename)!)! == env_map
-	}
-}
-
-fn test_print_file_creates_private_file_with_umask_022() {
-	assert_print_file_creates_private_file(0o022)!
-}
-
-fn test_print_file_creates_private_file_with_umask_000() {
-	assert_print_file_creates_private_file(0o000)!
-}
-
-fn assert_print_file_creates_private_file(mask u32) ! {
-	$if !windows {
-		directory := new_test_directory()!
-		previous_directory := os.getwd()
-		previous_env := os.environ()
-		previous_mask := C.umask(mask)
-		defer {
-			C.umask(previous_mask)
-			os.chdir(previous_directory) or { panic(err) }
-			os.rmdir_all(directory) or { panic(err) }
-			restore_test_environment(previous_env, ['VDOTENV_PERMISSION_SECRET'])
-		}
-		os.chdir(directory)!
-		os.write_file('.env', 'VDOTENV_PERMISSION_SECRET=original\n')!
-		os.setenv('VDOTENV_PERMISSION_SECRET', 'dummy-runtime-secret', true)
-		print_file()!
-		output_files := os.ls(directory)!.filter(it.starts_with('.env '))
-		assert output_files.len == 1
-		assert os.stat(output_files[0])!.mode & 0o7777 == 0o600
-		assert unmarshal(os.read_file(output_files[0])!)! == {
-			'VDOTENV_PERMISSION_SECRET': 'dummy-runtime-secret'
-		}
-		assert os.read_file('.env')! == 'VDOTENV_PERMISSION_SECRET=original\n'
-	}
-}
-
-fn test_write_protects_existing_public_file_before_overwriting() {
-	$if !windows {
-		directory := new_test_directory()!
-		defer {
-			os.rmdir_all(directory) or { panic(err) }
-		}
-		filename := os.join_path(directory, 'existing.env')
-		original := 'ORIGINAL=unchanged\n'
-		os.write_file(filename, original)!
-		os.chmod(filename, 0o644)!
-		env_map := {
-			'SECRET': 'dummy-secret'
-		}
-		mut rejected := false
-		write(env_map, filename) or { rejected = true }
-		if rejected {
-			assert os.read_file(filename)! == original
-		} else {
-			assert os.stat(filename)!.mode & 0o7777 == 0o600
-			assert unmarshal(os.read_file(filename)!)! == env_map
-		}
-	}
-}
-
-fn test_write_propagates_permission_errors() {
-	$if !windows {
-		// /dev/null is writable but owned by root; a non-root caller cannot chmod it.
-		if os.getuid() == 0 {
-			return
-		}
-		previous_mode := os.stat('/dev/null')!.mode
-		mut rejected := false
-		write({
-			'SECRET': 'dummy-secret'
-		}, '/dev/null') or {
-			rejected = true
-			assert err.msg().contains('permissions')
-			assert !err.msg().contains('dummy-secret')
-		}
-		assert rejected, 'Expected a permission error before writing'
-		assert os.stat('/dev/null')!.mode == previous_mode
+		}) or { rejected = true }
+		assert rejected, 'Expected marshal to reject invalid key'
 	}
 }
 
@@ -291,35 +163,7 @@ fn test_marshal_accepts_portable_keys() {
 	assert unmarshal(marshal(env_map)!)! == env_map
 }
 
-fn test_print_file_prevents_variable_injection() {
-	directory := new_test_directory()!
-	previous_directory := os.getwd()
-	previous_env := os.environ()
-	defer {
-		os.chdir(previous_directory) or { panic(err) }
-		os.rmdir_all(directory) or { panic(err) }
-		restore_test_environment(previous_env, ['USER_INPUT'])
-	}
-	os.chdir(directory)!
-	os.write_file('.env', 'USER_INPUT=original\n')!
-	value := 'hello\nVDOTENV_PROBE_ADMIN=enabled'
-	os.setenv('USER_INPUT', value, true)
-	print_file()!
-	mut output_files := []string{}
-	for filename in os.ls(directory)! {
-		if filename.starts_with('.env ') {
-			output_files << filename
-		}
-	}
-	assert output_files.len == 1
-	decoded := unmarshal(os.read_file(output_files[0])!)!
-	assert 'VDOTENV_PROBE_ADMIN' !in decoded
-	assert decoded == {
-		'USER_INPUT': value
-	}
-}
-
-fn test_print_functions_propagate_invalid_key_errors() {
+fn test_print_terminal_propagates_invalid_key_errors() {
 	directory := new_test_directory()!
 	previous_directory := os.getwd()
 	defer {
@@ -328,10 +172,6 @@ fn test_print_functions_propagate_invalid_key_errors() {
 	}
 	os.chdir(directory)!
 	os.write_file('.env', 'BAD-KEY=value\n')!
-	mut file_rejected := false
-	print_file() or { file_rejected = true }
-	assert file_rejected
-	assert os.ls(directory)!.len == 1
 	mut terminal_rejected := false
 	print_terminal() or { terminal_rejected = true }
 	assert terminal_rejected
@@ -360,31 +200,6 @@ fn test_unmarshal_ignores_whitespace_and_indented_comments() {
 	assert unmarshal(' \t\n  # comment\n\t# another comment\n VALUE = a=b=c # comment\nEMPTY=\n')! == {
 		'VALUE': 'a=b=c'
 		'EMPTY': ''
-	}
-}
-
-fn test_print_file_rejects_malformed_lines_without_output() {
-	directory := new_test_directory()!
-	previous_directory := os.getwd()
-	defer {
-		os.chdir(previous_directory) or { panic(err) }
-		os.rmdir_all(directory) or { panic(err) }
-	}
-	os.chdir(directory)!
-	malformed_lines := ['INVALID_LINE_SECRET', '=SECRET_VALUE', 'TOKEN="SECRET_VALUE',
-		"TOKEN='SECRET_VALUE", 'TOKEN="SECRET_VALUE" unexpected']
-	for line in malformed_lines {
-		contents := 'VALID=before\n  # comment\n${line}\nAFTER=after\n'
-		os.write_file('.env', contents)!
-		mut rejected := false
-		print_file() or {
-			rejected = true
-			assert err.msg().contains('line 3')
-			assert !err.msg().contains('SECRET')
-		}
-		assert rejected, 'Expected malformed input to return a parse error'
-		assert os.ls(directory)! == ['.env']
-		assert os.read_file('.env')! == contents
 	}
 }
 

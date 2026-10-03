@@ -6,10 +6,8 @@
 - [marshal](#marshal)
 - [over_load](#over_load)
 - [parse](#parse)
-- [print_file](#print_file)
 - [print_terminal](#print_terminal)
 - [unmarshal](#unmarshal)
-- [write](#write)
 - [ParseError](#ParseError)
   - [msg](#msg)
   - [code](#code)
@@ -50,15 +48,6 @@ parse writes contents of files into a format easily parsed by other systems with
 
 [[Return to contents]](#Contents)
 
-## print_file
-```v
-fn print_file() !
-```
-
-print_file writes the values set in .env file to a file Returns ParseError for malformed input, or an error if a key cannot be serialized, without creating an output file. .envファイルに記載されている環境変数に関して，現在の設定状況をファイルに書き出す．
-
-[[Return to contents]](#Contents)
-
 ## print_terminal
 ```v
 fn print_terminal() !
@@ -74,15 +63,6 @@ fn unmarshal(str string) !map[string]string
 ```
 
 unmarshal reads an env file from a string, returning a map of keys and values. Double-quoted values decode \\, \", \n, \r and \t escapes; single-quoted values are literal. Hashes inside quotes and equals signs in values are preserved. Blank lines and indented comments are ignored. Malformed lines return ParseError.
-
-[[Return to contents]](#Contents)
-
-## write
-```v
-fn write(env_map map[string]string, filename string) !
-```
-
-write serializes the given environment and writes it to a file. Invalid keys return an error without creating or overwriting the file.
 
 [[Return to contents]](#Contents)
 
@@ -117,4 +97,4 @@ code returns the default error code (0) required by IError.
 
 [[Return to contents]](#Contents)
 
-#### Powered by vdoc. Generated on: 3 Oct 2026 05:01:57
+#### Powered by vdoc. Generated on: 3 Oct 2026 11:11:41
