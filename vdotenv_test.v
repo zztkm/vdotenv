@@ -649,6 +649,47 @@ fn restore_test_environment(previous map[string]string, keys []string) {
 	}
 }
 
+fn test_load_rejects_nul_before_applying_file() {
+	directory := new_test_directory()!
+	keys := ['VDOTENV_NUL_BEFORE', 'VDOTENV_NUL_ALIAS', 'VDOTENV_NUL_VALUE']
+	previous_env := os.environ()
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+		restore_test_environment(previous_env, keys)
+	}
+	filename := os.join_path(directory, 'nul.env')
+	bad_lines := ['\x00SECRET_KEY=value', '${keys[1]}\x00SECRET_KEY=value', '${keys[1]}\x00=value',
+		'${keys[2]}=before\x00SECRET_VALUE', '${keys[2]}="before\x00SECRET_VALUE"',
+		"${keys[2]}='before\x00SECRET_VALUE'"]
+	for bad_line in bad_lines {
+		os.write_file(filename, '${keys[0]}=changed\n${bad_line}\n')!
+		for overwrite in [false, true] {
+			for key in keys {
+				os.unsetenv(key)
+			}
+			if overwrite {
+				os.setenv(keys[0], 'existing', true)
+				os.setenv(keys[1], 'existing', true)
+			}
+			before := os.environ()
+			mut rejected := false
+			if overwrite {
+				over_load(filename) or {
+					rejected = true
+					assert_test_parse_error(err, 2)
+				}
+			} else {
+				load(filename) or {
+					rejected = true
+					assert_test_parse_error(err, 2)
+				}
+			}
+			assert rejected, 'NUL input must return an error before applying any variables'
+			assert os.environ() == before
+		}
+	}
+}
+
 fn test_parse_multifiles() {
 	// test that returning a hash of env vars parsed from a variable number of files
 	assert parse(true, '.env', '.env.parse')! == '{ /* file: .env */ "TEST" : "OVERLOADENV", "TEST1" : "LOADENV", "TEST2" : "LOADENV", "TEST4" : "NOHASH", "TEST5" : "NOHASH", "TEST7" : "HASH #ENV", /* file: .env.parse */ "WORDONE" : "HELLO", "WORDTWO" : "WORLD" }'
