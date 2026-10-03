@@ -1,13 +1,12 @@
-import os
+import json
 import zztkm.vdotenv
 
 fn main() {
-	// loads env vars from a .env file.
-	vdotenv.load() or { panic(err) }
+	// false selects strict JSON; true adds escaped filename comments.
+	// parse does not modify the process environment.
+	output := vdotenv.parse(false) or { panic(err) }
+	env_map := json.decode(map[string]string, output) or { panic(err) }
 
-	s3_bucket := os.getenv('S3_BUCKET')
-	dynamodb_table := os.getenv('DYNAMODB_TABLE')
-	println(s3_bucket)
-	println(dynamodb_table)
-	// ...
+	println(env_map['S3_BUCKET'])
+	println(env_map['DYNAMODB_TABLE'])
 }

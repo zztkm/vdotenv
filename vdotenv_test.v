@@ -1,5 +1,6 @@
 module vdotenv
 
+import json
 import os
 import rand
 
@@ -65,6 +66,286 @@ fn test_quoted_hash() {
 fn test_parse() {
 	// test that returning a hash of env vars parsed from the default '.env' file
 	assert parse(true)! == '{ /* file: .env */ "TEST" : "OVERLOADENV", "TEST1" : "LOADENV", "TEST2" : "LOADENV", "TEST4" : "NOHASH", "TEST5" : "NOHASH", "TEST7" : "HASH #ENV" }'
+}
+
+fn test_parse_json_prevents_key_injection() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'injection.env')
+	key := 'A" : "safe", "ROLE'
+	os.write_file(filename, '${key}=admin\n')!
+	output := parse(false, filename)!
+	decoded := json.decode(map[string]string, output) or {
+		assert false, 'Expected valid JSON: ${output}'
+		return
+	}
+	assert 'ROLE' !in decoded
+	assert decoded == {
+		key: 'admin'
+	}
+}
+
+fn test_parse_json_round_trips_special_keys() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'keys.env')
+	for key in ['A"KEY', 'A\\KEY', 'A\tKEY'] {
+		os.write_file(filename, '${key}=value\n')!
+		output := parse(false, filename)!
+		assert output.contains(json.encode(key)), 'Expected a JSON-escaped key: ${output}'
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON: ${output}'
+			return
+		}
+		assert decoded == {
+			key: 'value'
+		}
+	}
+}
+
+fn test_parse_json_round_trips_backslashes() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'values.env')
+	for value in ['literal \\n', 'C:\\path\\file', 'trailing\\', '\\"quoted"'] {
+		env_map := {
+			'VALUE': value
+		}
+		os.write_file(filename, marshal(env_map)!)!
+		output := parse(false, filename)!
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON: ${output}'
+			return
+		}
+		assert decoded == env_map
+		assert output.contains(json.encode(value))
+	}
+}
+
+fn test_parse_json_escapes_control_values() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'controls.env')
+	for value in ['tab\there', 'line\nbreak', 'carriage\rreturn', '\x01\x08\x0c\x1f'] {
+		env_map := {
+			'VALUE': value
+		}
+		os.write_file(filename, marshal(env_map)!)!
+		output := parse(false, filename)!
+		assert output.contains(json.encode(value)), 'Expected a JSON-escaped value: ${output}'
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON: ${output}'
+			return
+		}
+		assert decoded == env_map
+	}
+}
+
+fn test_parse_names_escape_comment_delimiters() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'break*', 'quoted"\\\n\t.env')
+	os.mkdir_all(os.dir(filename))!
+	os.write_file(filename, 'VALUE=safe\n')!
+	output := parse(true, filename)!
+	comment_start := output.index('/* file: ') or { panic('Expected a file comment') }
+	comment_end := output.index(' */') or { panic('Expected a closed file comment') }
+	label := output[comment_start + '/* file: '.len..comment_end]
+	assert !label.contains('*/'), 'Filename must not terminate the comment'
+	assert !label.contains('\n') && !label.contains('\t')
+	// Labels are JSON string contents, with slashes escaped to protect comment delimiters.
+	decoded_name := json.decode(map[string]string, '{"filename":"${label}"}') or {
+		assert false, 'Expected a JSON-escaped filename label'
+		return
+	}
+	assert decoded_name['filename'] == filename
+	json_output := output[..comment_start] + output[comment_end + ' */'.len..]
+	decoded := json.decode(map[string]string, json_output) or {
+		assert false, 'Expected valid JSON after removing the file comment: ${json_output}'
+		return
+	}
+	assert decoded == {
+		'VALUE': 'safe'
+	}
+}
+
+fn test_parse_json_empty_files_do_not_add_commas() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	empty := os.join_path(directory, 'empty.env')
+	full := os.join_path(directory, 'full.env')
+	os.write_file(empty, ' # comment\n')!
+	os.write_file(full, 'VALUE=safe\n')!
+	for filenames in [[empty, full], [full, empty], [empty, full, empty]] {
+		output := parse(false, ...filenames)!
+		decoded := json.decode(map[string]string, output) or {
+			assert false, 'Expected valid JSON with empty files: ${output}'
+			return
+		}
+		assert decoded == {
+			'VALUE': 'safe'
+		}
+	}
+}
+
+fn test_parse_round_trips_normal_values_and_preserves_environment() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'normal.env')
+	env_map := {
+		'_':           ''
+		'lower_1':     'plain'
+		'UPPER':       ' leading and trailing '
+		'UNICODE':     '日本語 😀'
+		'PUNCTUATION': '"quoted" and \'single\' # hash = equal /* not a file comment */'
+	}
+	os.write_file(filename, marshal(env_map)!)!
+	previous_env := os.environ()
+	for include_names in [false, true] {
+		output := parse(include_names, filename)!
+		assert decode_test_parse_output(output, if include_names { [filename] } else { []string{} }) == env_map
+		assert os.environ() == previous_env
+	}
+}
+
+fn test_unmarshal_and_parse_preserve_permissive_keys() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'keys.env')
+	for key in ['A"KEY', 'A\\KEY', 'A\tKEY', 'A-KEY', 'A.KEY', '1KEY', '日本語'] {
+		contents := ' ${key} = value\n'
+		expected := {
+			key: 'value'
+		}
+		assert unmarshal(contents)! == expected
+		os.write_file(filename, contents)!
+		for include_names in [false, true] {
+			output := parse(include_names, filename)!
+			assert decode_test_parse_output(output, if include_names {
+				[filename]
+			} else {
+				[]string{}
+			}) == expected
+		}
+	}
+	// Physical line breaks cannot occur inside keys; they delimit dotenv lines.
+	for key in ['BAD\nKEY', 'BAD\rKEY', 'BAD\r\nKEY'] {
+		contents := '${key}=value\n'
+		mut string_rejected := false
+		unmarshal(contents) or {
+			string_rejected = true
+			assert_test_parse_error(err, 1)
+		}
+		assert string_rejected
+		os.write_file(filename, contents)!
+		for include_names in [false, true] {
+			mut file_rejected := false
+			parse(include_names, filename) or {
+				file_rejected = true
+				assert_test_parse_error(err, 1)
+			}
+			assert file_rejected
+		}
+	}
+}
+
+fn test_parse_empty_default_and_multifile_json() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	os.chdir(directory)!
+	os.write_file('.env', '')!
+	os.write_file('empty.env', ' # comment\n')!
+	os.write_file('first.env', 'SHARED=first\nFIRST=one\n')!
+	os.write_file('last.env', 'SHARED=last\nLAST=two\n')!
+	for include_names in [false, true] {
+		default_comments := if include_names { ['.env'] } else { []string{} }
+		assert decode_test_parse_output(parse(include_names)!, default_comments) == map[string]string{}
+		os.write_file('.env', 'DEFAULT=value\n')!
+		assert decode_test_parse_output(parse(include_names)!, default_comments) == {
+			'DEFAULT': 'value'
+		}
+		os.write_file('.env', '')!
+		for filenames in [['empty.env'], ['empty.env', 'empty.env'],
+			['empty.env', 'first.env', 'empty.env', 'last.env', 'empty.env']] {
+			output := parse(include_names, ...filenames)!
+			decoded := decode_test_parse_output(output, if include_names {
+				filenames
+			} else {
+				[]string{}
+			})
+			if 'first.env' in filenames {
+				assert decoded.len == 3
+				assert decoded['FIRST'] == 'one'
+				assert decoded['LAST'] == 'two'
+				// Duplicate-name resolution is decoder-specific; preserve the existing order.
+				assert decoded['SHARED'] in ['first', 'last']
+				assert output.count('"SHARED"') == 2
+				first_index := output.index('"SHARED" : "first"') or { panic(err) }
+				last_index := output.index('"SHARED" : "last"') or { panic(err) }
+				assert first_index < last_index
+			} else {
+				assert decoded == map[string]string{}
+			}
+		}
+	}
+}
+
+fn test_parse_names_preserve_comment_markers_and_unicode() {
+	directory := new_test_directory()!
+	mut filenames := []string{}
+	defer {
+		// rmdir_all normalizes backslashes; remove these literal filenames directly first.
+		for filename in filenames {
+			os.rm(filename) or { panic(err) }
+		}
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	nested := os.join_path(directory, 'break*')
+	os.mkdir_all(nested)!
+	for basename in ['*markers*.env', 'literal\\u002f.env', '日本語.env', '"quoted"\n\t.env'] {
+		// Do not use join_path for the basename: it normalizes literal backslashes.
+		filename := nested + os.path_separator + basename
+		filenames << filename
+		os.write_file(filename, 'VALUE="line\\n\\t\\\\\\""\n')!
+		output := parse(true, filename)!
+		assert output.count('/*') == 1
+		assert output.count('*/') == 1
+		assert !output.contains('\n') && !output.contains('\t')
+		assert decode_test_parse_output(output, [filename]) == unmarshal(os.read_file(filename)!)!
+	}
+}
+
+fn decode_test_parse_output(output string, filenames []string) map[string]string {
+	mut json_output := output
+	for filename in filenames {
+		encoded_name := json.encode(filename)
+		label := encoded_name[1..encoded_name.len - 1].replace('/', '\\u002f')
+		json_output = json_output.replace('/* file: ${label} */ ', '')
+	}
+	return json.decode(map[string]string, json_output) or {
+		assert false, 'Expected valid JSON after removing file comments: ${json_output}'
+		map[string]string{}
+	}
 }
 
 fn test_marshal_prevents_variable_injection() {

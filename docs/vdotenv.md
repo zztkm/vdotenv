@@ -44,7 +44,7 @@ over_load create environment variables from specified files; default to .env [no
 fn parse(include_names bool, filenames ...string) !string
 ```
 
-parse writes contents of files into a format easily parsed by other systems without modifying environment Returns ParseError for malformed input instead of returning partial output.
+parse returns a flat object of JSON-encoded keys and values without modifying environment. With include_names=false the output is strict JSON. With include_names=true it is JSON with /* file: NAME */ comments; NAME is JSON string contents with / escaped as \u002f. Empty files add no commas. Duplicate keys across files remain in file order. Returns ParseError for malformed input instead of returning partial output.
 
 [[Return to contents]](#Contents)
 
@@ -62,7 +62,7 @@ print_terminal prints the values set in .env file to the terminal .envファイ�
 fn unmarshal(str string) !map[string]string
 ```
 
-unmarshal reads an env file from a string, returning a map of keys and values. Double-quoted values decode \\, \", \n, \r and \t escapes; single-quoted values are literal. Hashes inside quotes and equals signs in values are preserved. Blank lines and indented comments are ignored. Malformed lines return ParseError.
+unmarshal reads an env file from a string, returning a map of keys and values. Double-quoted values decode \\, \", \n, \r and \t escapes; single-quoted values are literal. Hashes inside quotes and equals signs in values are preserved. Keys are the nonempty, whitespace-trimmed text before the first =; punctuation is literal. Physical CR/LF delimit lines and cannot occur inside keys. Blank lines and indented comments are ignored. Malformed lines return ParseError.
 
 [[Return to contents]](#Contents)
 
@@ -97,4 +97,4 @@ code returns the default error code (0) required by IError.
 
 [[Return to contents]](#Contents)
 
-#### Powered by vdoc. Generated on: 3 Oct 2026 11:11:41
+#### Powered by vdoc. Generated on: 3 Oct 2026 12:19:26

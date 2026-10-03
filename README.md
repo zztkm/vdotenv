@@ -75,6 +75,39 @@ Only the first `=` separates a key from its value, and `#` starts a comment only
 Physical multiline quoted values and variable interpolation are not supported; write multiline values using escaped `\n` or `\r`.
 The output is intended for dotenv readers, not for execution as a shell script.
 
+## JSON output and filename comments
+
+`parse(false, filenames...)` returns a flat JSON object without modifying the process environment.
+With no filenames it reads `.env`.
+Keys and values are escaped using V's standard JSON encoder, including quotes, backslashes and control characters.
+
+```v
+import json
+
+output := vdotenv.parse(false, '.env') or { panic(err) }
+env_map := json.decode(map[string]string, output) or { panic(err) }
+```
+
+Input keys retain the existing permissive rules: the text before the first `=` is trimmed and must be nonempty.
+Quotes, backslashes, internal tabs, punctuation and Unicode in keys are literal characters, not JSON syntax.
+Blank lines and comment lines are ignored; physical CR/LF characters delimit lines and cannot occur within a key.
+This is broader than the portable key restriction imposed by `marshal()`; use portable keys when serializing back to dotenv.
+
+`parse(true, filenames...)` keeps the same flat object but adds `/* file: NAME */` block comments before each file's entries, including empty files.
+It is JSON with comments, **not strict JSON**; use `false` with a standard JSON decoder.
+`NAME` contains JSON-escaped string contents (without enclosing quotes), and all `/` characters are additionally escaped as `\u002f`.
+This prevents filenames from opening or closing comments and keeps newlines and tabs out of the label.
+For example, `config/.env` is labeled `config\u002f.env`.
+
+**Output compatibility:** nonempty files with simple ASCII keys, values and filenames keep their previous layout, but special keys, values and filename labels now use JSON escapes.
+Do not compare raw escaped text to the original value.
+Decode the JSON object to recover keys and values; to recover a filename label, wrap it in double quotes and JSON-decode that string.
+Code that reads raw filename comments must adopt this decoding step.
+
+Empty files do not introduce commas.
+As before, repeated filenames are processed once, and duplicate keys across distinct files remain in file order.
+Duplicate-name resolution depends on the JSON decoder; use unique keys across files when a portable result is required.
+
 ## File output API removal
 
 **Breaking change:** `write()` and `print_file()` have been removed.
