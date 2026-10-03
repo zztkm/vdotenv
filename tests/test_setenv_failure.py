@@ -14,8 +14,11 @@ class SetenvFailureTests(unittest.TestCase):
         cls.build = tempfile.TemporaryDirectory(prefix="vdotenv-setenv-")
         cls.addClassCleanup(cls.build.cleanup)
         cls.program = Path(cls.build.name) / "load_failure"
+        modules = Path(cls.build.name) / "modules"
+        modules.mkdir()
+        (modules / "vdotenv").symlink_to(ROOT, target_is_directory=True)
         subprocess.run(
-            ["v", "-path", f"@vlib|{ROOT.parent}", "-o", str(cls.program),
+            ["v", "-path", f"@vlib|{modules}", "-o", str(cls.program),
              str(ROOT / "tests/fixtures/load_failure.v")],
             cwd=ROOT, check=True, capture_output=True,
         )

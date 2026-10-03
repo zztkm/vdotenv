@@ -15,8 +15,11 @@ class TerminalOutputTests(unittest.TestCase):
         cls.build = tempfile.TemporaryDirectory(prefix="vdotenv-terminal-")
         cls.addClassCleanup(cls.build.cleanup)
         cls.program = Path(cls.build.name) / "terminal"
+        modules = Path(cls.build.name) / "modules"
+        modules.mkdir()
+        (modules / "vdotenv").symlink_to(ROOT, target_is_directory=True)
         subprocess.run(
-            ["v", "-path", f"@vlib|{ROOT.parent}", "-o", str(cls.program),
+            ["v", "-path", f"@vlib|{modules}", "-o", str(cls.program),
              str(ROOT / "tests/fixtures/terminal.v")],
             cwd=ROOT, check=True, capture_output=True,
         )
