@@ -200,6 +200,154 @@ fn test_parse_json_empty_files_do_not_add_commas() {
 	}
 }
 
+fn test_parse_round_trips_normal_values_and_preserves_environment() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'normal.env')
+	env_map := {
+		'_':           ''
+		'lower_1':     'plain'
+		'UPPER':       ' leading and trailing '
+		'UNICODE':     '日本語 😀'
+		'PUNCTUATION': '"quoted" and \'single\' # hash = equal /* not a file comment */'
+	}
+	os.write_file(filename, marshal(env_map)!)!
+	previous_env := os.environ()
+	for include_names in [false, true] {
+		output := parse(include_names, filename)!
+		assert decode_test_parse_output(output, if include_names { [filename] } else { []string{} }) == env_map
+		assert os.environ() == previous_env
+	}
+}
+
+fn test_unmarshal_and_parse_preserve_permissive_keys() {
+	directory := new_test_directory()!
+	defer {
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	filename := os.join_path(directory, 'keys.env')
+	for key in ['A"KEY', 'A\\KEY', 'A\tKEY', 'A-KEY', 'A.KEY', '1KEY', '日本語'] {
+		contents := ' ${key} = value\n'
+		expected := {
+			key: 'value'
+		}
+		assert unmarshal(contents)! == expected
+		os.write_file(filename, contents)!
+		for include_names in [false, true] {
+			output := parse(include_names, filename)!
+			assert decode_test_parse_output(output, if include_names {
+				[filename]
+			} else {
+				[]string{}
+			}) == expected
+		}
+	}
+	// Physical line breaks cannot occur inside keys; they delimit dotenv lines.
+	for key in ['BAD\nKEY', 'BAD\rKEY', 'BAD\r\nKEY'] {
+		contents := '${key}=value\n'
+		mut string_rejected := false
+		unmarshal(contents) or {
+			string_rejected = true
+			assert_test_parse_error(err, 1)
+		}
+		assert string_rejected
+		os.write_file(filename, contents)!
+		for include_names in [false, true] {
+			mut file_rejected := false
+			parse(include_names, filename) or {
+				file_rejected = true
+				assert_test_parse_error(err, 1)
+			}
+			assert file_rejected
+		}
+	}
+}
+
+fn test_parse_empty_default_and_multifile_json() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	os.chdir(directory)!
+	os.write_file('.env', '')!
+	os.write_file('empty.env', ' # comment\n')!
+	os.write_file('first.env', 'SHARED=first\nFIRST=one\n')!
+	os.write_file('last.env', 'SHARED=last\nLAST=two\n')!
+	for include_names in [false, true] {
+		default_comments := if include_names { ['.env'] } else { []string{} }
+		assert decode_test_parse_output(parse(include_names)!, default_comments) == map[string]string{}
+		os.write_file('.env', 'DEFAULT=value\n')!
+		assert decode_test_parse_output(parse(include_names)!, default_comments) == {
+			'DEFAULT': 'value'
+		}
+		os.write_file('.env', '')!
+		for filenames in [['empty.env'], ['empty.env', 'empty.env'],
+			['empty.env', 'first.env', 'empty.env', 'last.env', 'empty.env']] {
+			output := parse(include_names, ...filenames)!
+			decoded := decode_test_parse_output(output, if include_names {
+				filenames
+			} else {
+				[]string{}
+			})
+			if 'first.env' in filenames {
+				assert decoded.len == 3
+				assert decoded['FIRST'] == 'one'
+				assert decoded['LAST'] == 'two'
+				// Duplicate-name resolution is decoder-specific; preserve the existing order.
+				assert decoded['SHARED'] in ['first', 'last']
+				assert output.count('"SHARED"') == 2
+				first_index := output.index('"SHARED" : "first"') or { panic(err) }
+				last_index := output.index('"SHARED" : "last"') or { panic(err) }
+				assert first_index < last_index
+			} else {
+				assert decoded == map[string]string{}
+			}
+		}
+	}
+}
+
+fn test_parse_names_preserve_comment_markers_and_unicode() {
+	directory := new_test_directory()!
+	mut filenames := []string{}
+	defer {
+		// rmdir_all normalizes backslashes; remove these literal filenames directly first.
+		for filename in filenames {
+			os.rm(filename) or { panic(err) }
+		}
+		os.rmdir_all(directory) or { panic(err) }
+	}
+	nested := os.join_path(directory, 'break*')
+	os.mkdir_all(nested)!
+	for basename in ['*markers*.env', 'literal\\u002f.env', '日本語.env', '"quoted"\n\t.env'] {
+		// Do not use join_path for the basename: it normalizes literal backslashes.
+		filename := nested + os.path_separator + basename
+		filenames << filename
+		os.write_file(filename, 'VALUE="line\\n\\t\\\\\\""\n')!
+		output := parse(true, filename)!
+		assert output.count('/*') == 1
+		assert output.count('*/') == 1
+		assert !output.contains('\n') && !output.contains('\t')
+		assert decode_test_parse_output(output, [filename]) == unmarshal(os.read_file(filename)!)!
+	}
+}
+
+fn decode_test_parse_output(output string, filenames []string) map[string]string {
+	mut json_output := output
+	for filename in filenames {
+		encoded_name := json.encode(filename)
+		label := encoded_name[1..encoded_name.len - 1].replace('/', '\\u002f')
+		json_output = json_output.replace('/* file: ${label} */ ', '')
+	}
+	return json.decode(map[string]string, json_output) or {
+		assert false, 'Expected valid JSON after removing file comments: ${json_output}'
+		map[string]string{}
+	}
+}
+
 fn test_marshal_prevents_variable_injection() {
 	env_map := {
 		'USER_INPUT': 'hello\nVDOTENV_PROBE_ADMIN=enabled'

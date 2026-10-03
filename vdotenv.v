@@ -1,5 +1,6 @@
 module vdotenv
 
+import json
 import os
 import strings
 
@@ -58,6 +59,8 @@ pub fn marshal(env_map map[string]string) !string {
 // unmarshal reads an env file from a string, returning a map of keys and values.
 // Double-quoted values decode \\, \", \n, \r and \t escapes; single-quoted values are literal.
 // Hashes inside quotes and equals signs in values are preserved.
+// Keys are the nonempty, whitespace-trimmed text before the first =; punctuation is literal.
+// Physical CR/LF delimit lines and cannot occur inside keys.
 // Blank lines and indented comments are ignored. Malformed lines return ParseError.
 pub fn unmarshal(str string) !map[string]string {
 	return parse_contents(str)
@@ -78,35 +81,36 @@ pub fn print_terminal() ! {
 	println(format_env_map(os_env_map)!)
 }
 
-// parse writes contents of files into a format easily parsed by other systems without modifying environment
+// parse returns a flat object of JSON-encoded keys and values without modifying environment.
+// With include_names=false the output is strict JSON. With include_names=true it is
+// JSON with /* file: NAME */ comments; NAME is JSON string contents with / escaped as \u002f.
+// Empty files add no commas. Duplicate keys across files remain in file order.
 // Returns ParseError for malformed input instead of returning partial output.
 pub fn parse(include_names bool, filenames ...string) !string {
-	mut files := parse_files(filenames)!
+	files := parse_files(filenames)!
 	mut output_builder := strings.new_builder(100)
 	output_builder.write_string('{ ')
-	fnames := files.keys()
-	for file_ndx in 0 .. fnames.len {
-		variables := files[fnames[file_ndx]].clone()
-		keys := variables.keys()
-		fname := fnames[file_ndx]
+	mut has_entries := false
+	for fname, variables in files {
+		if has_entries && variables.len > 0 {
+			output_builder.write_string(', ')
+		} else if has_entries && include_names {
+			output_builder.write_string(' ')
+		}
 		if include_names {
-			output_builder.write_string('/* file: ${fname} */ ')
+			encoded_name := json.encode(fname)
+			label := encoded_name[1..encoded_name.len - 1].replace('/', '\\u002f')
+			output_builder.write_string('/* file: ${label} */ ')
 		}
-		for i in 0 .. keys.len {
-			quoted_var := variables[keys[i]].replace('"', '\\"')
-			output_builder.write_string('"${keys[i]}" : "${quoted_var}"')
-			if i < keys.len - 1 {
+		for i, key in variables.keys() {
+			if i > 0 {
 				output_builder.write_string(', ')
-			} else {
-				output_builder.write_string('')
 			}
+			output_builder.write_string('${json.encode(key)} : ${json.encode(variables[key])}')
+			has_entries = true
 		}
-		if file_ndx < filenames.len - 1 {
-			output_builder.write_string(',')
-		}
-		output_builder.write_string(' ')
 	}
-	output_builder.write_string('}')
+	output_builder.write_string(' }')
 	return output_builder.str()
 }
 
