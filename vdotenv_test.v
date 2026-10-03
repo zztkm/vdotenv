@@ -3,6 +3,11 @@ module vdotenv
 import os
 import rand
 
+$if !windows {
+	#include <sys/stat.h>
+	fn C.umask(u32) u32
+}
+
 /*
 Sample .env file for tests:
 .env
@@ -169,6 +174,110 @@ fn test_write_rejects_invalid_keys_without_changing_file() {
 		}, new_filename) or { new_file_rejected = true }
 		assert new_file_rejected
 		assert !os.exists(new_filename)
+	}
+}
+
+fn test_write_creates_private_file_with_umask_022() {
+	assert_write_creates_private_file(0o022)!
+}
+
+fn test_write_creates_private_file_with_umask_000() {
+	assert_write_creates_private_file(0o000)!
+}
+
+fn assert_write_creates_private_file(mask u32) ! {
+	$if !windows {
+		directory := new_test_directory()!
+		previous_mask := C.umask(mask)
+		defer {
+			C.umask(previous_mask)
+			os.rmdir_all(directory) or { panic(err) }
+		}
+		filename := os.join_path(directory, 'secret.env')
+		env_map := {
+			'SECRET': 'dummy-secret'
+		}
+		write(env_map, filename)!
+		assert os.stat(filename)!.mode & 0o7777 == 0o600
+		assert unmarshal(os.read_file(filename)!)! == env_map
+	}
+}
+
+fn test_print_file_creates_private_file_with_umask_022() {
+	assert_print_file_creates_private_file(0o022)!
+}
+
+fn test_print_file_creates_private_file_with_umask_000() {
+	assert_print_file_creates_private_file(0o000)!
+}
+
+fn assert_print_file_creates_private_file(mask u32) ! {
+	$if !windows {
+		directory := new_test_directory()!
+		previous_directory := os.getwd()
+		previous_env := os.environ()
+		previous_mask := C.umask(mask)
+		defer {
+			C.umask(previous_mask)
+			os.chdir(previous_directory) or { panic(err) }
+			os.rmdir_all(directory) or { panic(err) }
+			restore_test_environment(previous_env, ['VDOTENV_PERMISSION_SECRET'])
+		}
+		os.chdir(directory)!
+		os.write_file('.env', 'VDOTENV_PERMISSION_SECRET=original\n')!
+		os.setenv('VDOTENV_PERMISSION_SECRET', 'dummy-runtime-secret', true)
+		print_file()!
+		output_files := os.ls(directory)!.filter(it.starts_with('.env '))
+		assert output_files.len == 1
+		assert os.stat(output_files[0])!.mode & 0o7777 == 0o600
+		assert unmarshal(os.read_file(output_files[0])!)! == {
+			'VDOTENV_PERMISSION_SECRET': 'dummy-runtime-secret'
+		}
+		assert os.read_file('.env')! == 'VDOTENV_PERMISSION_SECRET=original\n'
+	}
+}
+
+fn test_write_protects_existing_public_file_before_overwriting() {
+	$if !windows {
+		directory := new_test_directory()!
+		defer {
+			os.rmdir_all(directory) or { panic(err) }
+		}
+		filename := os.join_path(directory, 'existing.env')
+		original := 'ORIGINAL=unchanged\n'
+		os.write_file(filename, original)!
+		os.chmod(filename, 0o644)!
+		env_map := {
+			'SECRET': 'dummy-secret'
+		}
+		mut rejected := false
+		write(env_map, filename) or { rejected = true }
+		if rejected {
+			assert os.read_file(filename)! == original
+		} else {
+			assert os.stat(filename)!.mode & 0o7777 == 0o600
+			assert unmarshal(os.read_file(filename)!)! == env_map
+		}
+	}
+}
+
+fn test_write_propagates_permission_errors() {
+	$if !windows {
+		// /dev/null is writable but owned by root; a non-root caller cannot chmod it.
+		if os.getuid() == 0 {
+			return
+		}
+		previous_mode := os.stat('/dev/null')!.mode
+		mut rejected := false
+		write({
+			'SECRET': 'dummy-secret'
+		}, '/dev/null') or {
+			rejected = true
+			assert err.msg().contains('permissions')
+			assert !err.msg().contains('dummy-secret')
+		}
+		assert rejected, 'Expected a permission error before writing'
+		assert os.stat('/dev/null')!.mode == previous_mode
 	}
 }
 
