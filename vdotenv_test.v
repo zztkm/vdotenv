@@ -724,6 +724,45 @@ fn test_file_apis_preserve_filename_whitespace() {
 	}
 }
 
+fn test_unmarshal_ignores_initial_utf8_bom() {
+	for contents in ['TOKEN=value\n', '# comment\nTOKEN=value\n', '\nTOKEN=value\n', ''] {
+		assert unmarshal('\xef\xbb\xbf' + contents)! == unmarshal(contents)!
+	}
+}
+
+fn test_file_apis_ignore_initial_utf8_bom() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	key := 'VDOTENV_BOM_VALUE'
+	previous_env := os.environ()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+		restore_test_environment(previous_env, [key, '\xef\xbb\xbf' + key])
+	}
+	os.chdir(directory)!
+	for prefix in ['', '# comment\n', '\n'] {
+		contents := '\xef\xbb\xbf' + prefix + '${key}=value\n'
+		os.write_file('.env', contents)!
+		for include_names in [false, true] {
+			assert decode_test_parse_output(parse(include_names)!, if include_names {
+				['.env']
+			} else {
+				[]string{}
+			}) == {
+				key: 'value'
+			}
+		}
+		os.unsetenv(key)
+		load()!
+		assert os.getenv(key) == 'value'
+		os.setenv(key, 'existing', true)
+		over_load()!
+		assert os.getenv(key) == 'value'
+		assert '\xef\xbb\xbf' + key !in os.environ()
+	}
+}
+
 fn test_parse_multifiles() {
 	// test that returning a hash of env vars parsed from a variable number of files
 	assert parse(true, '.env', '.env.parse')! == '{ /* file: .env */ "TEST" : "OVERLOADENV", "TEST1" : "LOADENV", "TEST2" : "LOADENV", "TEST4" : "NOHASH", "TEST5" : "NOHASH", "TEST7" : "HASH #ENV", /* file: .env.parse */ "WORDONE" : "HELLO", "WORDTWO" : "WORLD" }'
