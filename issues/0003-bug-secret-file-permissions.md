@@ -2,8 +2,19 @@
 
 - Created: 2026-10-03
 - Completed: {YYYY-MM-DD}
-- Branch: feature/fix-secret-file-permissions
+- Branch: feature/remove-file-output
 - Polished: {YYYY-MM-DD}
+
+## 対応方針の変更
+
+ファイル出力機能を廃止するため、本 issue の権限を修正する対応は取り止める。
+公開 API の `write()` と `print_file()`、内部の `write_file()` を削除し、`marshal()` は残す。
+保存先、権限、ACL、既存ファイルの扱いは呼び出し元に任せる。
+`print_terminal()` は今回の廃止対象に含めない。
+
+権限修正用の実装とテストは採用せず、ファイル入力の回帰テストは `marshal()` と呼び出し元の書き込み処理を使う形で保持する。
+以下の再現手順、設計方針、完了条件は、廃止決定前の記録として残す。
+元の権限修正の完了条件を達成した扱いにはしない。
 
 ## 目的
 

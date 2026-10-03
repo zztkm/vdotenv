@@ -53,7 +53,7 @@ API_URL=YOUR_API_URL # This is inline comment
 
 ## Serialization and compatibility
 
-`marshal()`, `write()`, `print_file()` and `print_terminal()` emit `KEY="VALUE"` lines.
+`marshal()` and `print_terminal()` emit `KEY="VALUE"` lines.
 Keys must match `[A-Za-z_][A-Za-z0-9_]*`; invalid keys return an error rather than being written.
 Values escape backslashes, double quotes, LF, CR and tabs as `\\`, `\"`, `\n`, `\r` and `\t`.
 Spaces, `#`, `=` and single quotes are preserved inside the double-quoted value.
@@ -62,13 +62,11 @@ Spaces, `#`, `=` and single quotes are preserved inside the double-quoted value.
 env_map := { 'USER_INPUT': 'hello\nADMIN=enabled' }
 encoded := vdotenv.marshal(env_map) or { panic(err) }
 assert vdotenv.unmarshal(encoded) or { panic(err) } == env_map
-vdotenv.write(env_map, 'config.env') or { panic(err) }
 ```
 
 **API change:** `marshal()` now returns `!string` instead of `string`, and `print_terminal()` now returns `!` instead of returning no value.
 Callers must propagate errors with `!` or handle them with `or { ... }`.
-`write()` and `print_file()` retain their Result signatures and also propagate key validation errors.
-Validation errors do not create or overwrite output files.
+`print_terminal()` propagates key validation errors without printing environment values.
 
 Reading still supports unquoted values and inline comments.
 Double-quoted values decode the escapes above; unknown escapes retain their backslash.
@@ -76,6 +74,37 @@ Single-quoted values are literal, including backslashes (unlike the previous dec
 Only the first `=` separates a key from its value, and `#` starts a comment only outside a quoted value.
 Physical multiline quoted values and variable interpolation are not supported; write multiline values using escaped `\n` or `\r`.
 The output is intended for dotenv readers, not for execution as a shell script.
+
+## File output API removal
+
+**Breaking change:** `write()` and `print_file()` have been removed.
+vdotenv no longer creates or overwrites output files.
+`marshal()` remains available; the caller chooses the destination, permissions or ACLs, overwrite behavior, and write-error handling.
+`print_terminal()` remains available.
+
+Replace `write(env_map, filename)` with serialization followed by your application's own writer:
+
+```v
+contents := vdotenv.marshal(env_map) or { panic(err) }
+// Apply your application's file permission/ACL policy before writing contents.
+```
+
+To replace `print_file()`, read the keys from `.env`, retrieve their current process values, and serialize them:
+
+```v
+file_contents := os.read_file('.env') or { panic(err) }
+file_env_map := vdotenv.unmarshal(file_contents) or { panic(err) }
+mut current_env := map[string]string{}
+for key in file_env_map.keys() {
+    current_env[key] = os.getenv(key)
+}
+contents := vdotenv.marshal(current_env) or { panic(err) }
+// Choose an output filename and write contents using your application's policy.
+```
+
+For secret files, a POSIX writer should create new files with restricted permissions (for example, `0600`) and restrict or reject existing files before truncating or writing them.
+On Windows, use an appropriate ACL policy.
+Do not assume that a generic file-writing function makes secrets private.
 
 ## Parse errors and API compatibility
 
@@ -86,7 +115,7 @@ Error messages include neither the input line nor its key or value.
 
 **API change:** `unmarshal()` now returns `!map[string]string`, `parse()` returns `!string`, and `load()` and `over_load()` return `!`.
 These functions previously returned plain values (or no value) and silently skipped malformed lines.
-`print_file()` and `print_terminal()` retain their Result signatures and now propagate parse errors too.
+`print_terminal()` also propagates parse errors.
 Handle errors with `or { ... }` or propagate them with `!`:
 
 ```v
@@ -101,7 +130,7 @@ env_map := vdotenv.unmarshal('INVALID_LINE') or {
 Parsing stops at the first malformed line and does not return a partial map or output.
 `load()` and `over_load()` apply variables only after a whole file parses successfully.
 When loading multiple files, earlier successful files remain applied; the malformed file and subsequent files are not applied.
-`print_file()` creates no output file and `print_terminal()` prints no environment values on a parse error.
+`print_terminal()` prints no environment values on a parse error.
 The existing missing/unreadable-file behavior is unchanged: a diagnostic is printed and that file is treated as empty.
 
 ## Installation and Import
