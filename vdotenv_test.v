@@ -690,6 +690,40 @@ fn test_load_rejects_nul_before_applying_file() {
 	}
 }
 
+fn test_file_apis_preserve_filename_whitespace() {
+	directory := new_test_directory()!
+	previous_directory := os.getwd()
+	key := 'VDOTENV_FILENAME_VALUE'
+	previous_env := os.environ()
+	defer {
+		os.chdir(previous_directory) or { panic(err) }
+		os.rmdir_all(directory) or { panic(err) }
+		restore_test_environment(previous_env, [key])
+	}
+	os.chdir(directory)!
+	for basename in [' requested.env', 'requested.env ', ' requested.env '] {
+		os.write_file(basename, '${key}=requested\n')!
+		os.write_file(basename.trim_space(), '${key}=other\n')!
+		for filename in [basename, directory + os.path_separator + basename] {
+			for include_names in [false, true] {
+				assert decode_test_parse_output(parse(include_names, filename)!, if include_names {
+					[filename]
+				} else {
+					[]string{}
+				}) == {
+					key: 'requested'
+				}
+			}
+			os.unsetenv(key)
+			load(filename)!
+			assert os.getenv(key) == 'requested'
+			os.setenv(key, 'existing', true)
+			over_load(filename)!
+			assert os.getenv(key) == 'requested'
+		}
+	}
+}
+
 fn test_parse_multifiles() {
 	// test that returning a hash of env vars parsed from a variable number of files
 	assert parse(true, '.env', '.env.parse')! == '{ /* file: .env */ "TEST" : "OVERLOADENV", "TEST1" : "LOADENV", "TEST2" : "LOADENV", "TEST4" : "NOHASH", "TEST5" : "NOHASH", "TEST7" : "HASH #ENV", /* file: .env.parse */ "WORDONE" : "HELLO", "WORDTWO" : "WORLD" }'
